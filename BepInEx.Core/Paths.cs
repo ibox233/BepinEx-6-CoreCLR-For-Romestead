@@ -136,6 +136,28 @@ public static class Paths
         DllSearchPaths = (dllSearchPath ?? new string[0]).Concat(new[] { ManagedPath }).Distinct().ToArray();
     }
 
+    public static void SetDotNetGamePath(string entrypointAssemblyPath,
+                                         string bepinRootPath = null,
+                                         string[] dllSearchPath = null)
+    {
+        ExecutablePath = entrypointAssemblyPath;
+        ProcessName = Path.GetFileNameWithoutExtension(entrypointAssemblyPath);
+
+        GameRootPath = Path.GetDirectoryName(entrypointAssemblyPath);
+        GameDataPath = GameRootPath;
+        ManagedPath = GameRootPath;
+        BepInExRootPath = bepinRootPath ?? Path.Combine(GameRootPath, "BepInEx");
+        ConfigPath = Path.Combine(BepInExRootPath, "config");
+        BepInExConfigPath = Path.Combine(ConfigPath, "BepInEx.cfg");
+        PluginPath = Path.Combine(BepInExRootPath, "plugins");
+        PatcherPluginPath = Path.Combine(BepInExRootPath, "patchers");
+        BepInExAssemblyDirectory = Path.Combine(BepInExRootPath, "core");
+        BepInExAssemblyPath = Path.Combine(BepInExAssemblyDirectory,
+                                           $"{Assembly.GetExecutingAssembly().GetName().Name}.dll");
+        CachePath = Path.Combine(BepInExRootPath, "cache");
+        DllSearchPaths = (dllSearchPath ?? new string[0]).Concat(new[] { ManagedPath }).Distinct().ToArray();
+    }
+
     internal static void SetPluginPath(string pluginPath) =>
         PluginPath = Utility.CombinePaths(BepInExRootPath, pluginPath);
 }

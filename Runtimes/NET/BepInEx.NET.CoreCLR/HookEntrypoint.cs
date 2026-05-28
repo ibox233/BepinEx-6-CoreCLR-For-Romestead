@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using BepInEx.Logging;
 using BepInEx.NET.CoreCLR;
 using BepInEx.NET.Shared;
@@ -13,8 +14,13 @@ internal class StartupHook
 
     public static string DoesNotExistPath = "_doesnotexist_.exe";
 
+    private static int initialized;
+
     public static void Initialize()
     {
+        if (Interlocked.Exchange(ref initialized, 1) == 1)
+            return;
+
         var silentExceptionLog = $"bepinex_preloader_{DateTime.Now:yyyyMMdd_HHmmss_fff}.log";
 
         try
@@ -166,7 +172,7 @@ namespace BepInEx.NET.CoreCLR
         {
             PlatformUtils.SetPlatform();
 
-            Paths.SetExecutablePath(filename);
+            Paths.SetDotNetGamePath(filename);
 
             AppDomain.CurrentDomain.AssemblyResolve += SharedEntrypoint.LocalResolve;
 

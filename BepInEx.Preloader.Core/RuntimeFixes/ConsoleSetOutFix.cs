@@ -15,7 +15,10 @@ public static class ConsoleSetOutFix
     {
         loggedTextWriter = new LoggedTextWriter { Parent = Console.Out };
         Console.SetOut(loggedTextWriter);
-        Harmony.CreateAndPatchAll(typeof(ConsoleSetOutFix));
+
+        var original = AccessTools.Method(typeof(Console), nameof(Console.SetOut), new[] { typeof(TextWriter) });
+        var prefix = AccessTools.Method(typeof(ConsoleSetOutFix), nameof(OnSetOut));
+        new Harmony("BepInEx.Preloader.ConsoleSetOutFix").Patch(original, prefix: new HarmonyMethod(prefix));
     }
 
     [HarmonyPatch(typeof(Console), nameof(Console.SetOut))]

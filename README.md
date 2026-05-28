@@ -4,6 +4,11 @@
 
 # BepInEx
 
+> Romestead fork note: this working tree contains a game-specific CoreCLR
+> branch for Romestead. See [ROMESTEAD_FORK.md](ROMESTEAD_FORK.md) for the
+> exact upstream base commit, local changes, build steps, and LGPL
+> redistribution notes.
+
 ![Github All Releases](https://img.shields.io/github/downloads/bepinex/bepinex/total.svg)
 ![GitHub release](https://img.shields.io/github/release/bepinex/bepinex.svg)
 [![BepInEx Discord](https://user-images.githubusercontent.com/7288322/34429117-c74dbd12-ecb8-11e7-896d-46369cd0de5b.png)](https://discord.gg/MpFEDAg)

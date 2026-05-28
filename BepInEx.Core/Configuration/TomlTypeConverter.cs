@@ -12,7 +12,6 @@ namespace BepInEx.Configuration;
 /// </summary>
 public static class TomlTypeConverter
 {
-    // Don't put anything from UnityEngine here or it will break preloader, use LazyTomlConverterLoader instead
     private static Dictionary<Type, TypeConverter> TypeConverters { get; } = new()
     {
         [typeof(string)] = new TypeConverter

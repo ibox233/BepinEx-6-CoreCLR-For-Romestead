@@ -8,10 +8,10 @@ It is based on upstream BepInEx commit:
 3fab71a1914132a1ce3a545caf3192da603f2258
 ```
 
-This fork is not a full general-purpose BepInEx distribution. Unity Mono,
-Unity IL2CPP, Doorstop, and .NET Framework launcher support have been removed.
-The remaining loader targets Romestead's .NET 8 / MonoGame Windows build via
-the CoreCLR startup hook path.
+This fork is not a full general-purpose BepInEx distribution. Non-CoreCLR
+runtime frontends and legacy launcher paths have been removed. The remaining
+loader targets Romestead's .NET 8 / MonoGame Windows build via the CoreCLR
+startup hook path.
 
 ## What It Keeps
 
@@ -26,7 +26,7 @@ the CoreCLR startup hook path.
 
 - Targets CoreCLR at `net8.0`.
 - Treats the Romestead game root as the managed assembly directory.
-- Avoids Unity-style `*_Data/Managed` path detection.
+- Uses Romestead's flat game directory as the managed assembly directory.
 - Makes the startup hook idempotent.
 - Updates HarmonyX to `2.16.1`.
 - Removes non-CoreCLR runtime projects from this fork.

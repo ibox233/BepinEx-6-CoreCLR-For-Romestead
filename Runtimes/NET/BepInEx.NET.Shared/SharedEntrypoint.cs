@@ -4,10 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 
-// This code is shared between the .NET Framework launcher and the .NET Core entrypoint projects.
-// However, it cannot be placed in the NetLauncher.Common project because this has to do with assembly resolution,
-//   and placing this logic inside of an external assembly will cause a crash.
-// A shared project is the only way to deduplicate code here
+// Shared assembly resolution helpers for the CoreCLR startup hook.
 
 namespace BepInEx.NET.Shared
 {
@@ -50,7 +47,7 @@ namespace BepInEx.NET.Shared
                     {
                         assembly = Assembly.LoadFrom(path);
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
                         continue;
                     }

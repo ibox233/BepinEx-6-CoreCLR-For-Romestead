@@ -1,15 +1,14 @@
 ﻿// --------------------------------------------------
-// UnityInjector - ConsoleWindow.cs
+// Windows console window helper.
 // Copyright (c) Usagirei 2015 - 2015
 // --------------------------------------------------
 
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
-using BepInEx;
 using BepInEx.ConsoleUtil;
 
-namespace UnityInjector.ConsoleUtil;
+namespace BepInEx.ConsoleUtil;
 
 internal class ConsoleWindow
 {

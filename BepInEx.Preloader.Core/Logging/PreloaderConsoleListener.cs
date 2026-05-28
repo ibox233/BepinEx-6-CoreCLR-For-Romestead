@@ -5,7 +5,7 @@ using BepInEx.Logging;
 namespace BepInEx.Preloader.Core.Logging;
 
 /// <summary>
-///     Log listener that listens to logs during preloading time and buffers messages for output in Unity logs later.
+///     Log listener that buffers messages produced before the chainloader loggers are ready.
 /// </summary>
 public class PreloaderConsoleListener : ILogListener
 {

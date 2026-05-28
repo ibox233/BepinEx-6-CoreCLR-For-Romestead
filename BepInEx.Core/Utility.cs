@@ -105,13 +105,6 @@ public static class Utility
         bool.TryParse(input, out var result) ? result : defaultValue;
 
     /// <summary>
-    ///     Converts a file path into a UnityEngine.WWW format.
-    /// </summary>
-    /// <param name="path">The file path to convert.</param>
-    /// <returns>A converted file path.</returns>
-    public static string ConvertToWWWFormat(string path) => $"file://{path.Replace('\\', '/')}";
-
-    /// <summary>
     ///     Indicates whether a specified string is null, empty, or consists only of white-space characters.
     /// </summary>
     /// <param name="self">The string to test.</param>

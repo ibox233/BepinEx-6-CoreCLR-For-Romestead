@@ -62,7 +62,7 @@ public static class ChainloaderLogHelper
         // https://docs.microsoft.com/en-us/dotnet/core/compatibility/core-libraries/5.0/environment-osversion-returns-correct-version#change-description
 
         // Some additional notes
-        // On .NET Framework and .NET Core platforms before 5, Environment.OSVersion does not work as you would expect.
+        // On older runtimes, Environment.OSVersion does not always return the real OS version.
 
         // On Windows, it returns at maximum 6.3 (Windows 8) if you don't specify that your application is specifically compatible with Windows 10, due to compatibility layer stuff.
         // So we have to call RtlGetVersion which bypasses that and gets the values for us. This is done in PlatformUtils

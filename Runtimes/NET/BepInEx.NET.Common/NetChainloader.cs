@@ -10,10 +10,10 @@ namespace BepInEx.NET.Common
         // TODO: Remove once proper instance handling exists
         public static NetChainloader Instance { get; set; }
 
-        public override void Initialize(string gameExePath = null)
+        public override void Initialize()
         {
             Instance = this;
-            base.Initialize(gameExePath);
+            base.Initialize();
         }
 
         public override BasePlugin LoadPlugin(PluginInfo pluginInfo, Assembly pluginAssembly)

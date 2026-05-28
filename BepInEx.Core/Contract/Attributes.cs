@@ -10,7 +10,7 @@ using Version = SemanticVersioning.Version;
 
 namespace BepInEx;
 
-#region BaseUnityPlugin
+#region Plugin metadata
 
 /// <summary>
 ///     This attribute denotes that a class is a plugin, and specifies the required metadata.
@@ -100,7 +100,7 @@ public class BepInDependency : Attribute, ICacheable
     }
 
     /// <summary>
-    ///     Marks this <see cref="BaseUnityPlugin" /> as dependent on another plugin. The other plugin will be loaded before
+    ///     Marks this plugin as dependent on another plugin. The other plugin will be loaded before
     ///     this one.
     ///     If the other plugin doesn't exist, what happens depends on the <see cref="Flags" /> parameter.
     /// </summary>
@@ -114,7 +114,7 @@ public class BepInDependency : Attribute, ICacheable
     }
 
     /// <summary>
-    ///     Marks this <see cref="BaseUnityPlugin" /> as dependent on another plugin. The other plugin will be loaded before
+    ///     Marks this plugin as dependent on another plugin. The other plugin will be loaded before
     ///     this one.
     ///     If the other plugin doesn't exist or is of a version not satisfying <see cref="VersionRange" />, this plugin will
     ///     not load and an error will be logged instead.
@@ -178,7 +178,7 @@ public class BepInDependency : Attribute, ICacheable
 public class BepInIncompatibility : Attribute, ICacheable
 {
     /// <summary>
-    ///     Marks this <see cref="BaseUnityPlugin" /> as incompatible with another plugin.
+    ///     Marks this plugin as incompatible with another plugin.
     ///     If the other plugin exists, this plugin will not be loaded and a warning will be shown.
     /// </summary>
     /// <param name="IncompatibilityGUID">The GUID of the referenced plugin.</param>

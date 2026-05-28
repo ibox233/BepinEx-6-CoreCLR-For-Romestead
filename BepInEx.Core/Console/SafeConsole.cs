@@ -1,16 +1,16 @@
 ﻿// --------------------------------------------------
-// UnityInjector - SafeConsole.cs
+// Windows console compatibility helper.
 // Copyright (c) Usagirei 2015 - 2015
 // --------------------------------------------------
 
 using System;
 using System.Reflection;
 
-namespace UnityInjector.ConsoleUtil;
-
 /// <summary>
-///     Console class with safe handlers for Unity 4.x, which does not have a proper Console implementation
+///     Console class with safe handlers for runtimes where some Console APIs may be missing.
 /// </summary>
+namespace BepInEx.ConsoleUtil;
+
 internal static class SafeConsole
 {
     private static GetColorDelegate _getBackgroundColor;

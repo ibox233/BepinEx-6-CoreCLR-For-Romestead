@@ -266,14 +266,6 @@ public class AssemblyPatcher : IDisposable
 
             Logger.LogDebug($"Assembly loaded: {Path.GetFileName(assemblyPath)}");
 
-            //if (UnityPatches.AssemblyLocations.ContainsKey(assembly.FullName))
-            //{
-            //	Logger.LogWarning($"Tried to load duplicate assembly {Path.GetFileName(assemblyPath)} from Managed folder! Skipping...");
-            //	continue;
-            //}
-
-            //assemblies.Add(Path.GetFileName(assemblyPath), assembly);
-            //UnityPatches.AssemblyLocations.Add(assembly.FullName, Path.GetFullPath(assemblyPath));
         }
     }
 

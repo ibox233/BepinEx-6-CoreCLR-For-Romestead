@@ -9,18 +9,17 @@ The fork is based on upstream BepInEx commit:
 3fab71a1914132a1ce3a545caf3192da603f2258
 ```
 
-Romestead is a .NET 8 / MonoGame Windows game. Stock BepInEx BE755 CoreCLR
-assumes Unity-style game paths. This branch keeps the BepInEx plugin model and
-directory layout, while narrowing the runtime path to this game.
+Romestead is a .NET 8 / MonoGame Windows game. This branch keeps the BepInEx
+plugin model and directory layout, while narrowing the runtime path to this
+game.
 
-This is not a full BepInEx distribution. Unity Mono, Unity IL2CPP, Doorstop, and
-.NET Framework launcher support have been removed from this fork.
+This is not a full BepInEx distribution. Non-CoreCLR runtime frontends and
+legacy launcher paths have been removed from this fork.
 
 ## Changes in this fork
 
 - Targets the CoreCLR startup hook build at `net8.0`.
-- Resolves Romestead paths as a non-Unity .NET game, with the game root as the
-  managed directory.
+- Resolves Romestead paths with the game root as the managed directory.
 - Makes the CoreCLR startup hook idempotent so repeated hook configuration does
   not initialize BepInEx twice.
 - Updates HarmonyX to 2.16.1 for plugin patching on this game.

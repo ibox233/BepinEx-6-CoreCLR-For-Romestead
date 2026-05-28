@@ -1,9 +1,9 @@
 ﻿// --------------------------------------------------
-// UnityInjector - ConsoleEncoding.Buffers.cs
+// Windows console encoding helper.
 // Copyright (c) Usagirei 2015 - 2015
 // --------------------------------------------------
 
-namespace UnityInjector.ConsoleUtil;
+namespace BepInEx.ConsoleUtil;
 // --------------------------------------------------
 // Code ported from
 // https://gist.github.com/asm256/9bfb88336a1433e2328a

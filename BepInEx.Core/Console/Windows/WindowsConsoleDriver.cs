@@ -1,27 +1,13 @@
 using System;
 using System.IO;
-using System.Linq;
-using System.Reflection;
 using BepInEx.ConsoleUtil;
 using HarmonyLib;
-using Microsoft.Win32.SafeHandles;
 using MonoMod.Utils;
-using UnityInjector.ConsoleUtil;
 
 namespace BepInEx;
 
 internal class WindowsConsoleDriver : IConsoleDriver
 {
-    // Apparently on some versions of Unity (e.g. 2018.4) using old mono causes crashes on game close if
-    // IntPtr overload is used for file streams (check #139).
-    // On the other hand, not all Unity games come with SafeFileHandle overload for FileStream
-    // As such, we're trying to use SafeFileHandle when it's available and go back to IntPtr overload if not available
-    private static readonly ConstructorInfo FileStreamCtor = new[]
-    {
-        AccessTools.Constructor(typeof(FileStream), new[] { typeof(SafeFileHandle), typeof(FileAccess) }),
-        AccessTools.Constructor(typeof(FileStream), new[] { typeof(IntPtr), typeof(FileAccess) })
-    }.FirstOrDefault(m => m != null);
-
     private readonly Func<int> getWindowHeight = AccessTools
                                                  .PropertyGetter(typeof(Console), nameof(Console.WindowHeight))
                                                  ?.CreateDelegate<Func<int>>();

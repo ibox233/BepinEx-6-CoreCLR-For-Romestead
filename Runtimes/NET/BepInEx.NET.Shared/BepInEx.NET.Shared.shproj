@@ -11,6 +11,6 @@
     <ItemGroup>
         <Compile Include="SharedEntrypoint.cs" />
     </ItemGroup>
-    <Import Project="BepInEx.NetLauncher.Shared.projitems" Label="Shared" />
+    <Import Project="BepInEx.NET.Shared.projitems" Label="Shared" />
     <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\CodeSharing\Microsoft.CodeSharing.CSharp.targets" />
 </Project>

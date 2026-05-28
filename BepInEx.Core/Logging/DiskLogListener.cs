@@ -6,7 +6,7 @@ using System.Threading;
 namespace BepInEx.Logging;
 
 /// <summary>
-///     Logs entries using Unity specific outputs.
+///     Logs entries to a file under the BepInEx directory.
 /// </summary>
 public class DiskLogListener : ILogListener
 {

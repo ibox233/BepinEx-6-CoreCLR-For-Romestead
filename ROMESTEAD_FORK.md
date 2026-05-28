@@ -1,6 +1,7 @@
 # Romestead CoreCLR fork notes
 
-This branch is a game-specific fork of BepInEx BE755 for Romestead.
+This branch is a game-specific, CoreCLR-only fork of BepInEx BE755 for
+Romestead.
 
 The fork is based on upstream BepInEx commit:
 
@@ -9,10 +10,11 @@ The fork is based on upstream BepInEx commit:
 ```
 
 Romestead is a .NET 8 / MonoGame Windows game. Stock BepInEx BE755 CoreCLR
-assumes Unity-style game paths and uses HarmonyX / MonoMod.RuntimeDetour
-versions that can fail during plugin startup in this runtime. This branch keeps
-the BepInEx plugin model and directory layout, while narrowing the runtime path
-to this game.
+assumes Unity-style game paths. This branch keeps the BepInEx plugin model and
+directory layout, while narrowing the runtime path to this game.
+
+This is not a full BepInEx distribution. Unity Mono, Unity IL2CPP, Doorstop, and
+.NET Framework launcher support have been removed from this fork.
 
 ## Changes in this fork
 
@@ -21,9 +23,8 @@ to this game.
   managed directory.
 - Makes the CoreCLR startup hook idempotent so repeated hook configuration does
   not initialize BepInEx twice.
-- Uses `Lib.Harmony` instead of HarmonyX for plugin patching on this game.
-- Removes the preloader dependency on `MonoMod.RuntimeDetour`.
-- Replaces the Harmony logger bridge with a no-op compatibility shim.
+- Updates HarmonyX to 2.16.1 for plugin patching on this game.
+- Removes non-CoreCLR runtime projects and build assets.
 - Keeps the BepInEx console and log output behavior so startup can be inspected
   in real time.
 
@@ -73,8 +74,8 @@ BepInEx is licensed under LGPL-2.1. Keep the upstream `LICENSE`, copyright
 notices, and source availability intact when distributing this fork.
 
 This fork also redistributes third-party dependencies under their own licenses,
-including `Lib.Harmony` 2.4.1 and MonoMod / Mono.Cecil components. Keep their
-NuGet package license files/notices with binary releases where applicable.
+including HarmonyX 2.16.1 and MonoMod / Mono.Cecil components. Keep their NuGet
+package license files/notices with binary releases where applicable.
 
 Do not publish Romestead game binaries, game assets, Steam files, or generated
 logs containing local user paths. Publish only this modified BepInEx source and

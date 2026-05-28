@@ -1,37 +1,42 @@
 using System;
+using System.Collections.Generic;
 using BepInEx.Configuration;
+using HarmonyLogger = HarmonyLib.Tools.Logger;
 
 namespace BepInEx.Logging;
 
 public class HarmonyLogSource : ILogSource
 {
-    [Flags]
-    private enum HarmonyLogChannel
-    {
-        None = 0,
-        Info = 1,
-        IL = 2,
-        Warn = 4,
-        Error = 8,
-        Debug = 16,
-        All = Info | IL | Warn | Error | Debug
-    }
-
-    private static readonly ConfigEntry<HarmonyLogChannel> LogChannels = ConfigFile.CoreConfig.Bind(
+    private static readonly ConfigEntry<HarmonyLogger.LogChannel> LogChannels = ConfigFile.CoreConfig.Bind(
      "Harmony.Logger",
      "LogChannels",
-     HarmonyLogChannel.Warn | HarmonyLogChannel.Error,
+     HarmonyLogger.LogChannel.Warn | HarmonyLogger.LogChannel.Error,
      "Specifies which Harmony log channels to listen to.\nNOTE: IL channel dumps the whole patch methods, use only when needed!");
+
+    private static readonly Dictionary<HarmonyLogger.LogChannel, LogLevel> LevelMap = new()
+    {
+        [HarmonyLogger.LogChannel.Info] = LogLevel.Info,
+        [HarmonyLogger.LogChannel.Warn] = LogLevel.Warning,
+        [HarmonyLogger.LogChannel.Error] = LogLevel.Error,
+        [HarmonyLogger.LogChannel.IL] = LogLevel.Debug
+    };
 
     public HarmonyLogSource()
     {
-        _ = LogChannels.Value;
+        HarmonyLogger.ChannelFilter = LogChannels.Value;
+        HarmonyLogger.MessageReceived += HandleHarmonyMessage;
     }
 
-    public void Dispose()
-    {
-    }
+    public void Dispose() => HarmonyLogger.MessageReceived -= HandleHarmonyMessage;
 
-    public string SourceName { get; } = "Harmony";
+    public string SourceName { get; } = "HarmonyX";
     public event EventHandler<LogEventArgs> LogEvent;
+
+    private void HandleHarmonyMessage(object sender, HarmonyLogger.LogEventArgs e)
+    {
+        if (!LevelMap.TryGetValue(e.LogChannel, out var level))
+            return;
+
+        LogEvent?.Invoke(this, new LogEventArgs(e.Message, level, this));
+    }
 }

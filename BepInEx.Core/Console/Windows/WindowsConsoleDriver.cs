@@ -143,22 +143,10 @@ internal class WindowsConsoleDriver : IConsoleDriver
 
     private static Stream OpenFileStream(IntPtr handle)
     {
-        if (ReflectionHelper.IsCore)
-        {
-            var windowsConsoleStreamType = Type.GetType("System.ConsolePal+WindowsConsoleStream, System.Console", true);
-            var constructor = AccessTools.Constructor(windowsConsoleStreamType,
-                                                      new[] { typeof(IntPtr), typeof(FileAccess), typeof(bool) });
-            return (Stream)constructor.Invoke(new object[] { handle, FileAccess.Write, true });
-        }
-
-        var fileHandle = new SafeFileHandle(handle, false);
-        var ctorParams = AccessTools.ActualParameters(FileStreamCtor,
-                                                      new object[]
-                                                      {
-                                                          fileHandle, fileHandle.DangerousGetHandle(),
-                                                          FileAccess.Write
-                                                      });
-        return (FileStream) Activator.CreateInstance(typeof(FileStream), ctorParams);
+        var windowsConsoleStreamType = Type.GetType("System.ConsolePal+WindowsConsoleStream, System.Console", true);
+        var constructor = AccessTools.Constructor(windowsConsoleStreamType,
+                                                  new[] { typeof(IntPtr), typeof(FileAccess), typeof(bool) });
+        return (Stream) constructor.Invoke(new object[] { handle, FileAccess.Write, true });
     }
 
     private IntPtr GetOutHandle()

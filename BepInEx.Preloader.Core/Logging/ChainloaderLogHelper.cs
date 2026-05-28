@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using BepInEx.Logging;
-using MonoMod.Utils;
 
 namespace BepInEx.Preloader.Core.Logging;
 
@@ -72,7 +71,7 @@ public static class ChainloaderLogHelper
 
         // Not sure what it does on Linux. I think it returns the kernel version there too, but we already get the utsname structure from SetPlatform() regardless
 
-        if (PlatformHelper.Is(Platform.Windows))
+        if (PlatformUtils.IsWindows)
         {
             osVersion = PlatformUtils.WindowsVersion;
 
@@ -95,10 +94,10 @@ public static class ChainloaderLogHelper
             else if (osVersion.Major <= 5)
                 builder.Append("XP");
 
-            if (PlatformHelper.Is(Platform.Wine))
+            if (PlatformUtils.IsWine)
                 builder.AppendFormat(" (Wine {0})", PlatformUtils.WineVersion);
         }
-        else if (PlatformHelper.Is(Platform.MacOS))
+        else if (PlatformUtils.IsMacOS)
         {
             builder.Append("macOS ");
 
@@ -114,7 +113,7 @@ public static class ChainloaderLogHelper
                 builder.AppendFormat("Unknown (kernel {0})", osVersion);
             }
         }
-        else if (PlatformHelper.Is(Platform.Linux))
+        else if (PlatformUtils.IsLinux)
         {
             builder.Append("Linux");
 
@@ -124,20 +123,8 @@ public static class ChainloaderLogHelper
             }
         }
 
-        builder.Append(PlatformHelper.Is(Platform.Bits64) ? " 64-bit" : " 32-bit");
-
-        if (PlatformHelper.Is(Platform.Android))
-        {
-            builder.Append(" Android");
-        }
-
-        if (PlatformHelper.Is(Platform.ARM))
-        {
-            builder.Append(" ARM");
-
-            if (PlatformHelper.Is(Platform.Bits64))
-                builder.Append("64");
-        }
+        builder.Append(PlatformUtils.ProcessIs64Bit ? " 64-bit" : " 32-bit");
+        builder.AppendFormat(" ({0})", PlatformUtils.Architecture);
 
         return builder.ToString();
     }

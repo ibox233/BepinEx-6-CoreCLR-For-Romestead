@@ -1,6 +1,7 @@
-# BepInEx 6 CoreCLR for Romestead
+# Romestead BepInEx Mod Loader
 
-This repository is a Romestead-specific, CoreCLR-only fork of BepInEx BE755.
+This repository contains a Romestead-specific mod loader based on BepInEx 6
+BE755 for .NET/CoreCLR.
 
 It is based on upstream BepInEx commit:
 
@@ -10,7 +11,7 @@ It is based on upstream BepInEx commit:
 
 This fork is not a full general-purpose BepInEx distribution. Non-CoreCLR
 runtime frontends and legacy launcher paths have been removed. The remaining
-loader targets Romestead's .NET 8 / MonoGame Windows build via the CoreCLR
+mod loader targets Romestead's .NET 8 / MonoGame Windows build via the CoreCLR
 startup hook path.
 
 ## What It Keeps

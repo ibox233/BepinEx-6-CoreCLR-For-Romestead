@@ -1,7 +1,7 @@
-# Romestead CoreCLR fork notes
+# Romestead BepInEx mod loader fork notes
 
-This branch is a game-specific, CoreCLR-only fork of BepInEx BE755 for
-Romestead.
+This branch is a Romestead-specific mod loader fork based on BepInEx BE755 for
+.NET/CoreCLR.
 
 The fork is based on upstream BepInEx commit:
 
@@ -11,7 +11,7 @@ The fork is based on upstream BepInEx commit:
 
 Romestead is a .NET 8 / MonoGame Windows game. This branch keeps the BepInEx
 plugin model and directory layout, while narrowing the runtime path to this
-game.
+game-specific mod loader.
 
 This is not a full BepInEx distribution. Non-CoreCLR runtime frontends and
 legacy launcher paths have been removed from this fork.

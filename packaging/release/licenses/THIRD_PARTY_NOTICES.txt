@@ -1,0 +1,40 @@
+Romestead BepInEx Mod Loader
+============================
+
+This package contains a modified build of BepInEx for Romestead.
+
+BepInEx
+-------
+License: LGPL-2.1
+Source: https://github.com/ibox233/BepinEx-6-CoreCLR-For-Romestead
+Upstream base: https://github.com/BepInEx/BepInEx
+
+See BepInEx-LGPL-2.1.txt.
+
+HarmonyX
+--------
+License: MIT
+Package: HarmonyX 2.16.1
+
+See HarmonyX-MIT.txt.
+
+MonoMod / RuntimeDetour / Utils / Core / ILHelpers / Backports / Iced
+---------------------------------------------------------------------
+License: MIT
+
+See MonoMod-MIT.txt.
+
+Mono.Cecil
+----------
+License: MIT
+Package: Mono.Cecil 0.11.6
+
+SemanticVersioning
+------------------
+License: MIT-compatible upstream license
+Package: SemanticVersioning 2.0.2
+
+Game Files
+----------
+This package must not include Romestead game binaries, assets, Steam files, or
+generated user logs.

@@ -1,0 +1,72 @@
+name: Build and publish release
+
+on:
+  push:
+    branches:
+      - romestead-net8
+    paths:
+      - "BepInEx.sln"
+      - "Directory.Build.props"
+      - "nuget.config"
+      - "BepInEx.Core/**"
+      - "BepInEx.Preloader.Core/**"
+      - "Runtimes/NET/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: Build and publish Romestead BepInEx
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore .\BepInEx.sln
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build .\BepInEx.sln -c Release --no-restore
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $result = .\packaging\package-release.ps1 -Configuration Release
+          "asset_path=$($result.AssetPath)" >> $env:GITHUB_OUTPUT
+          "asset_name=$($result.AssetName)" >> $env:GITHUB_OUTPUT
+          "release_tag=$($result.ReleaseTag)" >> $env:GITHUB_OUTPUT
+          "release_name=$($result.ReleaseName)" >> $env:GITHUB_OUTPUT
+          "loader_sha=$($result.LoaderSha)" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.release_tag }}
+          name: ${{ steps.package.outputs.release_name }}
+          files: ${{ steps.package.outputs.asset_path }}
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
+          body: |
+            Romestead BepInEx Mod Loader release.
+
+            Loader source commit: `${{ steps.package.outputs.loader_sha }}`
+
+            Install by extracting the archive directly into the Romestead game
+            folder, then run `install.bat` next to `Romestead.exe`.
+
+            Launch Romestead through Steam. If Steam file verification or a game
+            update removes the hook, run `install.bat` again.

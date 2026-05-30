@@ -38,7 +38,7 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: dotnet build .\BepInEx.sln -c Release --no-restore
+        run: dotnet build .\BepInEx.sln -c Release --no-restore -p:GenerateDocumentationFile=true
 
       - name: Package
         id: package

@@ -1,14 +1,14 @@
 param(
-    [string] $Configuration = "Release"
+    [string] $Configuration = "Release",
+    [string] $Runtime = "win-x64"
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-$buildOutput = Join-Path $repoRoot "bin\NET.CoreCLR\net8.0"
-$packageRoot = Join-Path $repoRoot "artifacts\release-package"
+$buildOutput = Join-Path (Join-Path (Join-Path $repoRoot "bin") "NET.CoreCLR") "net8.0"
 $artifactRoot = Join-Path $repoRoot "artifacts"
-$releaseTemplate = Join-Path $repoRoot "packaging\release"
+$releaseTemplate = Join-Path (Join-Path $repoRoot "packaging") "release"
 
 $loaderPaths = @(
     "BepInEx.Core",
@@ -34,14 +34,16 @@ if ([string]::IsNullOrWhiteSpace($loaderSha)) {
 }
 
 $framework = "net8.0"
-$runtime = "win-x64"
-$packageName = "Romestead-BepInEx-NET.CoreCLR-$framework-$runtime-$versionPrefix-$loaderSha"
+$packageName = "Romestead-BepInEx-NET.CoreCLR-$framework-$Runtime-$versionPrefix-$loaderSha"
 $zipPath = Join-Path $artifactRoot "$packageName.zip"
+$packageRoot = Join-Path $artifactRoot $packageName
+$corePackagePath = Join-Path (Join-Path $packageRoot "BepInEx") "core"
+$licensesPackagePath = Join-Path $packageRoot "licenses"
 
 Remove-Item -LiteralPath $packageRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot "BepInEx\core") | Out-Null
-New-Item -ItemType Directory -Force -Path (Join-Path $packageRoot "licenses") | Out-Null
+New-Item -ItemType Directory -Force -Path $corePackagePath | Out-Null
+New-Item -ItemType Directory -Force -Path $licensesPackagePath | Out-Null
 
 Copy-Item -LiteralPath (Join-Path $buildOutput "BepInEx.NET.CoreCLR.dll") -Destination $packageRoot -Force
 Copy-Item -LiteralPath (Join-Path $buildOutput "BepInEx.NET.CoreCLR.deps.json") -Destination $packageRoot -Force
@@ -75,19 +77,25 @@ foreach ($fileName in $coreFiles) {
         throw "Expected build output is missing: $source"
     }
 
-    Copy-Item -LiteralPath $source -Destination (Join-Path $packageRoot "BepInEx\core") -Force
+    Copy-Item -LiteralPath $source -Destination $corePackagePath -Force
 }
 
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.bat") -Destination $packageRoot -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.ps1") -Destination $packageRoot -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.bat") -Destination $packageRoot -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.ps1") -Destination $packageRoot -Force
 Copy-Item -LiteralPath (Join-Path $releaseTemplate "README.txt") -Destination $packageRoot -Force
 
-Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $packageRoot "licenses\BepInEx-LGPL-2.1.txt") -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "licenses\HarmonyX-MIT.txt") -Destination (Join-Path $packageRoot "licenses\HarmonyX-MIT.txt") -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "licenses\MonoMod-MIT.txt") -Destination (Join-Path $packageRoot "licenses\MonoMod-MIT.txt") -Force
-Copy-Item -LiteralPath (Join-Path $releaseTemplate "licenses\THIRD_PARTY_NOTICES.txt") -Destination (Join-Path $packageRoot "licenses\THIRD_PARTY_NOTICES.txt") -Force
+if ($Runtime.StartsWith("linux", [System.StringComparison]::OrdinalIgnoreCase)) {
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.sh") -Destination $packageRoot -Force
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.sh") -Destination $packageRoot -Force
+} else {
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.bat") -Destination $packageRoot -Force
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.ps1") -Destination $packageRoot -Force
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.bat") -Destination $packageRoot -Force
+    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.ps1") -Destination $packageRoot -Force
+}
+
+Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $licensesPackagePath "BepInEx-LGPL-2.1.txt") -Force
+Copy-Item -LiteralPath (Join-Path (Join-Path $releaseTemplate "licenses") "HarmonyX-MIT.txt") -Destination (Join-Path $licensesPackagePath "HarmonyX-MIT.txt") -Force
+Copy-Item -LiteralPath (Join-Path (Join-Path $releaseTemplate "licenses") "MonoMod-MIT.txt") -Destination (Join-Path $licensesPackagePath "MonoMod-MIT.txt") -Force
+Copy-Item -LiteralPath (Join-Path (Join-Path $releaseTemplate "licenses") "THIRD_PARTY_NOTICES.txt") -Destination (Join-Path $licensesPackagePath "THIRD_PARTY_NOTICES.txt") -Force
 
 $forbiddenPatterns = @(
     "Romestead.exe",
@@ -111,7 +119,7 @@ foreach ($pattern in $forbiddenPatterns) {
 }
 
 Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
-Compress-Archive -Path (Join-Path $packageRoot "*") -DestinationPath $zipPath -Force
+Compress-Archive -Path (Join-Path $packageRoot "*") -DestinationPath $zipPath -Force -ErrorAction Stop
 
 [pscustomobject]@{
     PackageName = $packageName

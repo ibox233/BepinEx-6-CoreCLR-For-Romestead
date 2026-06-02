@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using BepInEx.Configuration;
 
@@ -94,7 +95,9 @@ public static class ConsoleManager
 
     public static void Initialize(bool alreadyActive, bool useManagedEncoder)
     {
-        Driver = new WindowsConsoleDriver();
+        Driver = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                     ? new WindowsConsoleDriver()
+                     : new UnixConsoleDriver();
         Driver.Initialize(alreadyActive, useManagedEncoder);
     }
 

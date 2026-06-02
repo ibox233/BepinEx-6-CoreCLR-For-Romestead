@@ -29,6 +29,7 @@ jobs:
         run: dotnet build ./BepInEx.sln -c Release --no-restore -p:GenerateDocumentationFile=true
 
       - name: Package linux asset
+        id: package
         shell: pwsh
         run: |
           $result = ./packaging/package-release.ps1 -Configuration Release -Runtime linux-x64
@@ -36,6 +37,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $result.AssetPath)) {
             throw "Package was not created: $($result.AssetPath)"
           }
+          "asset_path=$($result.AssetPath)" >> $env:GITHUB_OUTPUT
 
       - name: Inspect package
         shell: bash
@@ -46,3 +48,7 @@ jobs:
           unzip -l "$zip_path" | grep 'BepInEx/core/BepInEx.Core.dll'
           unzip -l "$zip_path" | grep 'install.sh'
           unzip -l "$zip_path" | grep 'uninstall.sh'
+
+      - name: Smoke test package
+        shell: pwsh
+        run: ./packaging/smoke-test.ps1 -PackagePath "${{ steps.package.outputs.asset_path }}"

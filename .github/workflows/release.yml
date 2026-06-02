@@ -51,6 +51,10 @@ jobs:
           "release_name=$($result.ReleaseName)" >> $env:GITHUB_OUTPUT
           "loader_sha=$($result.LoaderSha)" >> $env:GITHUB_OUTPUT
 
+      - name: Smoke test package
+        shell: pwsh
+        run: .\packaging\smoke-test.ps1 -PackagePath "${{ steps.package.outputs.asset_path }}"
+
       - name: Publish GitHub release
         if: github.ref == 'refs/heads/romestead-net8'
         uses: softprops/action-gh-release@v2

@@ -55,6 +55,7 @@ $artifactsRoot = Join-Path $repoRoot "artifacts"
 $smokeRoot = Join-Path $artifactsRoot "smoke-test"
 $testRoot = Join-Path $smokeRoot ([Guid]::NewGuid().ToString("N"))
 $projectDir = Join-Path $testRoot "SmokeGame"
+$pluginProjectDir = Join-Path $testRoot "SmokePlugin"
 $gameDir = Join-Path $testRoot "game"
 
 New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
@@ -83,13 +84,59 @@ Console.WriteLine("SmokeGame main reached");
     Expand-Archive -LiteralPath $resolvedPackagePath -DestinationPath $gameDir -Force
 
     $loaderPath = Join-Path $gameDir "BepInEx.NET.CoreCLR.dll"
-    $corePath = Join-Path (Join-Path (Join-Path $gameDir "BepInEx") "core") "BepInEx.Core.dll"
+    $bepInExRoot = Join-Path $gameDir "BepInEx"
+    $coreDir = Join-Path $bepInExRoot "core"
+    $pluginsDir = Join-Path $bepInExRoot "plugins"
+    $corePath = Join-Path $coreDir "BepInEx.Core.dll"
+    $commonPath = Join-Path $coreDir "BepInEx.NET.Common.dll"
     $gameDll = Join-Path $gameDir "SmokeGame.dll"
-    $logPath = Join-Path (Join-Path $gameDir "BepInEx") "LogOutput.log"
+    $logPath = Join-Path $bepInExRoot "LogOutput.log"
 
     Assert-FileExists -Path $loaderPath -Description "Startup hook loader"
     Assert-FileExists -Path $corePath -Description "BepInEx core assembly"
+    Assert-FileExists -Path $commonPath -Description "BepInEx .NET common assembly"
     Assert-FileExists -Path $gameDll -Description "Smoke game assembly"
+
+    New-Item -ItemType Directory -Force -Path $pluginProjectDir | Out-Null
+    New-Item -ItemType Directory -Force -Path $pluginsDir | Out-Null
+
+    @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$corePath</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.NET.Common">
+      <HintPath>$commonPath</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
+"@ | Set-Content -LiteralPath (Join-Path $pluginProjectDir "SmokePlugin.csproj") -Encoding UTF8
+
+    @"
+using BepInEx;
+using BepInEx.NET.Common;
+
+[BepInPlugin("romestead.bepinex.smoketest", "Smoke Test Plugin", "1.0.0")]
+public sealed class SmokePlugin : BasePlugin
+{
+    public override void Load()
+    {
+        Log.LogInfo("Smoke test plugin loaded");
+    }
+}
+"@ | Set-Content -LiteralPath (Join-Path $pluginProjectDir "SmokePlugin.cs") -Encoding UTF8
+
+    dotnet publish (Join-Path $pluginProjectDir "SmokePlugin.csproj") -c Release -f net8.0 -o $pluginsDir | Out-Null
+    Assert-FileExists -Path (Join-Path $pluginsDir "SmokePlugin.dll") -Description "Smoke plugin assembly"
 
     Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
 
@@ -112,7 +159,9 @@ Console.WriteLine("SmokeGame main reached");
     Assert-LogContains -Log $log -Text "Preloader started"
     Assert-LogContains -Log $log -Text "Preloader finished"
     Assert-LogContains -Log $log -Text "Chainloader initialized"
-    Assert-LogContains -Log $log -Text "0 plugins to load"
+    Assert-LogContains -Log $log -Text "1 plugin to load"
+    Assert-LogContains -Log $log -Text "Loading [Smoke Test Plugin 1.0.0]"
+    Assert-LogContains -Log $log -Text "Smoke test plugin loaded"
     Assert-LogContains -Log $log -Text "Chainloader startup complete"
 
     $hasFatalPreloaderError = $log.IndexOf("[Fatal  : Preloader]", [System.StringComparison]::Ordinal) -ge 0 -or

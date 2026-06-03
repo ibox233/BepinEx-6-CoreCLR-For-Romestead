@@ -44,34 +44,66 @@ jobs:
         id: package
         shell: pwsh
         run: |
-          $result = .\packaging\package-release.ps1 -Configuration Release
-          "asset_path=$($result.AssetPath)" >> $env:GITHUB_OUTPUT
-          "asset_name=$($result.AssetName)" >> $env:GITHUB_OUTPUT
-          "release_tag=$($result.ReleaseTag)" >> $env:GITHUB_OUTPUT
-          "release_name=$($result.ReleaseName)" >> $env:GITHUB_OUTPUT
-          "loader_sha=$($result.LoaderSha)" >> $env:GITHUB_OUTPUT
+          $win = .\packaging\package-release.ps1 -Configuration Release -Runtime win-x64
+          $linux = .\packaging\package-release.ps1 -Configuration Release -Runtime linux-x64
 
-      - name: Smoke test package
+          "win_asset_path=$($win.AssetPath)" >> $env:GITHUB_OUTPUT
+          "win_asset_name=$($win.AssetName)" >> $env:GITHUB_OUTPUT
+          "linux_asset_path=$($linux.AssetPath)" >> $env:GITHUB_OUTPUT
+          "linux_asset_name=$($linux.AssetName)" >> $env:GITHUB_OUTPUT
+          "release_tag=$($win.ReleaseTag)" >> $env:GITHUB_OUTPUT
+          "release_name=$($win.ReleaseName)" >> $env:GITHUB_OUTPUT
+          "loader_sha=$($win.LoaderSha)" >> $env:GITHUB_OUTPUT
+
+      - name: Smoke test Windows package
         shell: pwsh
-        run: .\packaging\smoke-test.ps1 -PackagePath "${{ steps.package.outputs.asset_path }}"
+        run: .\packaging\smoke-test.ps1 -PackagePath "${{ steps.package.outputs.win_asset_path }}"
+
+      - name: Smoke test Linux package
+        shell: pwsh
+        run: .\packaging\smoke-test.ps1 -PackagePath "${{ steps.package.outputs.linux_asset_path }}"
 
       - name: Publish GitHub release
         if: github.ref == 'refs/heads/romestead-net8'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.package.outputs.release_tag }}
-          name: ${{ steps.package.outputs.release_name }}
-          files: ${{ steps.package.outputs.asset_path }}
-          fail_on_unmatched_files: true
-          generate_release_notes: true
-          make_latest: true
-          body: |
-            Romestead BepInEx Mod Loader release.
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @(
+            "Romestead BepInEx Mod Loader release."
+            ""
+            "Loader source commit: ``${{ steps.package.outputs.loader_sha }}``"
+            ""
+            "Windows install:"
+            "Extract the win-x64 archive directly into the Romestead game folder, then run ``install.bat`` next to ``Romestead.exe``."
+            ""
+            "Linux install:"
+            "Extract the linux-x64 archive directly into the Romestead game folder, then run:"
+            ""
+            '```sh'
+            "chmod +x ./install.sh"
+            "./install.sh"
+            '```'
+            ""
+            "Launch Romestead through Steam. If Steam file verification or a game update removes the hook, run the installer again."
+          ) -join "`n"
 
-            Loader source commit: `${{ steps.package.outputs.loader_sha }}`
+          gh release view "${{ steps.package.outputs.release_tag }}" *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "${{ steps.package.outputs.release_tag }}" `
+              --target "${{ github.sha }}" `
+              --title "${{ steps.package.outputs.release_name }}" `
+              --notes $notes `
+              --latest
+          } else {
+            gh release edit "${{ steps.package.outputs.release_tag }}" `
+              --target "${{ github.sha }}" `
+              --title "${{ steps.package.outputs.release_name }}" `
+              --notes $notes `
+              --latest
+          }
 
-            Install by extracting the archive directly into the Romestead game
-            folder, then run `install.bat` next to `Romestead.exe`.
-
-            Launch Romestead through Steam. If Steam file verification or a game
-            update removes the hook, run `install.bat` again.
+          gh release upload "${{ steps.package.outputs.release_tag }}" `
+            "${{ steps.package.outputs.win_asset_path }}" `
+            "${{ steps.package.outputs.linux_asset_path }}" `
+            --clobber

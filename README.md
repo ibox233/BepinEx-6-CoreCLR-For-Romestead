@@ -5,7 +5,7 @@ A Romestead-specific mod loader based on BepInEx 6 BE755 for .NET/CoreCLR.
 This modified version of BepInEx for Romestead is created and maintained by
 ibox233 (Ice Box Studio). It keeps the familiar BepInEx plugin model, folder
 layout, console logging, file logging, and HarmonyX patching workflow, while
-narrowing the runtime path to Romestead's .NET 8 / MonoGame Windows build.
+narrowing the runtime path to Romestead's .NET 8 / MonoGame build.
 
 It is based on upstream BepInEx commit:
 
@@ -30,16 +30,18 @@ mod loader starts through Romestead's CoreCLR startup hook path.
 
 ## Installing into Romestead
 
-For normal users, use the release package:
+For normal users, use the release package for your platform.
+
+### Windows
 
 1. In Steam, right-click Romestead.
 2. Open `Manage` -> `Browse local files`.
-3. Extract the release archive directly into the Romestead game folder.
+3. Extract the `win-x64` release archive directly into the Romestead game folder.
 4. Confirm that `install.bat` is next to `Romestead.exe`.
 5. Run `install.bat`.
 6. Start Romestead through Steam.
 
-After extraction, the game folder should look like this:
+After extracting the Windows package, the game folder should look like this:
 
 ```text
 Romestead/
@@ -48,6 +50,35 @@ Romestead/
   BepInEx.NET.CoreCLR.deps.json
   install.bat
   uninstall.bat
+  BepInEx/
+    core/
+```
+
+### Linux
+
+Linux support is experimental and has not been tested as broadly as Windows.
+
+1. In Steam, open Romestead's local files.
+2. Extract the `linux-x64` release archive directly into the Romestead game folder.
+3. Confirm that `install.sh` is next to `Romestead.runtimeconfig.json`.
+4. Run:
+
+```sh
+chmod +x ./install.sh
+./install.sh
+```
+
+5. Start Romestead through Steam.
+
+After extracting the Linux package, the game folder should look like this:
+
+```text
+Romestead/
+  Romestead.runtimeconfig.json
+  BepInEx.NET.CoreCLR.dll
+  BepInEx.NET.CoreCLR.deps.json
+  install.sh
+  uninstall.sh
   BepInEx/
     core/
 ```
@@ -69,7 +100,7 @@ Romestead should still be launched through Steam. Direct `Romestead.exe` or
 
 Steam file verification or a Romestead game update may restore the game's
 runtime config and remove the loader hook. If BepInEx stops starting after
-either of these, run `install.bat` again from the game folder.
+either of these, run the installer again from the game folder.
 
 ### Manual install from a local build
 

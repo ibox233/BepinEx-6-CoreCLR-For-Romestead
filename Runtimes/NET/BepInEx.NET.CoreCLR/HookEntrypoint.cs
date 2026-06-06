@@ -153,9 +153,11 @@ namespace BepInEx.NET.CoreCLR
         {
             ConsoleManager.Initialize(false, true);
 
-            ConsoleManager.CreateConsole();
-
-            Logger.Listeners.Add(new ConsoleLogListener());
+            if (ConsoleManager.ConsoleEnabled)
+            {
+                ConsoleManager.CreateConsole();
+                Logger.Listeners.Add(new ConsoleLogListener());
+            }
 
             try
             {

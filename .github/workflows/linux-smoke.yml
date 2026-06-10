@@ -1,4 +1,4 @@
-name: Linux smoke test
+name: Linux Proton package smoke test
 
 on:
   push:
@@ -8,8 +8,8 @@ on:
 
 jobs:
   build-and-package:
-    name: Build and package on Linux
-    runs-on: ubuntu-latest
+    name: Build and package Linux Proton asset
+    runs-on: windows-latest
 
     steps:
       - name: Checkout
@@ -22,11 +22,16 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Restore
-        run: dotnet restore ./BepInEx.sln
+        shell: pwsh
+        run: dotnet restore .\BepInEx.sln
 
       - name: Build
-        run: dotnet build ./BepInEx.sln -c Release --no-restore -p:GenerateDocumentationFile=true
+        shell: pwsh
+        run: dotnet build .\BepInEx.sln -c Release --no-restore -p:GenerateDocumentationFile=true
 
       - name: Package linux asset
         id: package
@@ -40,14 +45,40 @@ jobs:
           "asset_path=$($result.AssetPath)" >> $env:GITHUB_OUTPUT
 
       - name: Inspect package
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          zip_path="$(find artifacts -maxdepth 1 -name 'Romestead-BepInEx-NET.CoreCLR-net8.0-linux-x64-*.zip' -print -quit)"
-          test -n "$zip_path"
-          unzip -l "$zip_path" | grep 'BepInEx/core/BepInEx.Core.dll'
-          unzip -l "$zip_path" | grep 'install.sh'
-          unzip -l "$zip_path" | grep 'uninstall.sh'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+          $zip = [System.IO.Compression.ZipFile]::OpenRead("${{ steps.package.outputs.asset_path }}")
+          try {
+            $names = $zip.Entries | ForEach-Object { $_.FullName }
+
+            foreach ($required in @(
+              "d3d11.dll",
+              "BepInEx.NET.CoreCLR.dll",
+              "BepInEx.NET.CoreCLR.deps.json",
+              "BepInEx/core/BepInEx.Core.dll"
+            )) {
+              if ($names -notcontains $required) {
+                throw "Package is missing required file: $required"
+              }
+            }
+
+            $scripts = $names | Where-Object { $_ -match '(^|/)(install|uninstall)\.(bat|ps1|sh)$' }
+            if ($scripts) {
+              throw "Client package contains obsolete install/uninstall scripts: $($scripts -join ', ')"
+            }
+          }
+          finally {
+            $zip.Dispose()
+          }
+
+      - name: Upload smoke test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: romestead-bepinex-linux-proton-smoke-package
+          path: ${{ steps.package.outputs.asset_path }}
+          if-no-files-found: error
 
       - name: Smoke test package
         shell: pwsh

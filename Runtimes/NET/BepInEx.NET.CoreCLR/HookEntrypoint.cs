@@ -15,10 +15,13 @@ internal class StartupHook
     public static string DoesNotExistPath = "_doesnotexist_.exe";
 
     private static int initialized;
+    private static Mutex initializationMutex;
+
+    private const string AppDomainInitializedKey = "Romestead.BepInEx.NET.CoreCLR.StartupHook.Initialized";
 
     public static void Initialize()
     {
-        if (Interlocked.Exchange(ref initialized, 1) == 1)
+        if (!TryBeginInitialize())
             return;
 
         var silentExceptionLog = $"bepinex_preloader_{DateTime.Now:yyyyMMdd_HHmmss_fff}.log";
@@ -89,6 +92,32 @@ internal class StartupHook
             Console.WriteLine($"Arguments: {arguments ?? "<null>"}");
             Console.WriteLine(ex);
         }
+    }
+
+    private static bool TryBeginInitialize()
+    {
+        if (Interlocked.Exchange(ref initialized, 1) == 1)
+            return false;
+
+        if (AppDomain.CurrentDomain.GetData(AppDomainInitializedKey) != null)
+            return false;
+
+        try
+        {
+            var mutexName = $"Romestead.BepInEx.NET.CoreCLR.StartupHook.{Environment.ProcessId}";
+            initializationMutex = new Mutex(true, mutexName, out var createdNew);
+
+            if (!createdNew)
+                return false;
+        }
+        catch
+        {
+            // AppDomain data still protects the common duplicate-load case. The mutex
+            // only covers separate AssemblyLoadContexts entering at the same time.
+        }
+
+        AppDomain.CurrentDomain.SetData(AppDomainInitializedKey, true);
+        return true;
     }
 
     private static string TryDetermineAssemblyNameFromDotnet(string executableFilename)

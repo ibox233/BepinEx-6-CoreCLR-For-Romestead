@@ -10,6 +10,7 @@ on:
       - "nuget.config"
       - "BepInEx.Core/**"
       - "BepInEx.Preloader.Core/**"
+      - "Native/**"
       - "Runtimes/NET/**"
   workflow_dispatch:
 
@@ -31,6 +32,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Restore
         shell: pwsh
@@ -75,17 +79,12 @@ jobs:
             "Loader source commit: ``${{ steps.package.outputs.loader_sha }}``"
             ""
             "Windows install:"
-            "Extract the win-x64 archive directly into the Romestead game folder, then run ``install.bat`` next to ``Romestead.exe``."
+            "Extract the win-x64 archive directly into the Romestead game folder. The Windows client uses the included ``d3d11.dll`` hook and does not need an install script."
             ""
-            "Linux install:"
-            "Extract the linux-x64 archive directly into the Romestead game folder, then run:"
+            "Linux / Steam Proton package:"
+            "Romestead does not currently have a native Linux client build. Extract the linux-x64 archive into the Proton game folder; it also uses the included ``d3d11.dll`` hook and does not need an install script."
             ""
-            '```sh'
-            "chmod +x ./install.sh"
-            "./install.sh"
-            '```'
-            ""
-            "Launch Romestead through Steam. If Steam file verification or a game update removes the hook, run the installer again."
+            "Launch Romestead through Steam. If the loader stops appearing after a game update, reinstall the matching package."
           ) -join "`n"
 
           gh release view "${{ steps.package.outputs.release_tag }}" *> $null

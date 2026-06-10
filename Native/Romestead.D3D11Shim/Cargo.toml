@@ -1,0 +1,9 @@
+[package]
+name = "romestead_d3d11_shim"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]

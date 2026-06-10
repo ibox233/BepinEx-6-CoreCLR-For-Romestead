@@ -29,6 +29,22 @@ function Assert-LogContains {
     }
 }
 
+function Assert-LogContainsExactlyOnce {
+    param(
+        [string] $Log,
+        [string] $Text
+    )
+
+    $count = [System.Text.RegularExpressions.Regex]::Matches(
+        $Log,
+        [System.Text.RegularExpressions.Regex]::Escape($Text)
+    ).Count
+
+    if ($count -ne 1) {
+        throw "Smoke test log expected '$Text' exactly once, but found $count occurrence(s)."
+    }
+}
+
 function Remove-SmokeDirectory {
     param(
         [string] $Path,
@@ -56,6 +72,7 @@ $smokeRoot = Join-Path $artifactsRoot "smoke-test"
 $testRoot = Join-Path $smokeRoot ([Guid]::NewGuid().ToString("N"))
 $projectDir = Join-Path $testRoot "SmokeGame"
 $pluginProjectDir = Join-Path $testRoot "SmokePlugin"
+$duplicateEntrypointDir = Join-Path $testRoot "DuplicateEntrypoint"
 $gameDir = Join-Path $testRoot "game"
 
 New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
@@ -76,7 +93,21 @@ try {
 "@ | Set-Content -LiteralPath (Join-Path $projectDir "SmokeGame.csproj") -Encoding UTF8
 
     @"
+using System.Reflection;
+using System.Runtime.Loader;
+
 Console.WriteLine("SmokeGame main reached");
+
+var duplicateEntrypoint = Environment.GetEnvironmentVariable("BEPINEX_SMOKE_DUPLICATE_ENTRYPOINT");
+if (!string.IsNullOrWhiteSpace(duplicateEntrypoint) && File.Exists(duplicateEntrypoint))
+{
+    var duplicateLoadContext = new AssemblyLoadContext("BepInExDuplicateEntrypointSmokeTest", isCollectible: true);
+    var duplicateAssembly = duplicateLoadContext.LoadFromAssemblyPath(duplicateEntrypoint);
+    var entrypointType = duplicateAssembly.GetType("BepInEx.NET.CoreCLR.NativeEntrypoint", throwOnError: true)!;
+    var initialize = entrypointType.GetMethod("Initialize", BindingFlags.Public | BindingFlags.Static)!;
+    initialize.Invoke(null, new object[] { IntPtr.Zero, 0 });
+    Console.WriteLine("Duplicate BepInEx native entrypoint reached");
+}
 "@ | Set-Content -LiteralPath (Join-Path $projectDir "Program.cs") -Encoding UTF8
 
     dotnet publish (Join-Path $projectDir "SmokeGame.csproj") -c Release -f net8.0 --self-contained false -o $gameDir | Out-Null
@@ -84,6 +115,7 @@ Console.WriteLine("SmokeGame main reached");
     Expand-Archive -LiteralPath $resolvedPackagePath -DestinationPath $gameDir -Force
 
     $loaderPath = Join-Path $gameDir "BepInEx.NET.CoreCLR.dll"
+    $d3d11HookPath = Join-Path $gameDir "d3d11.dll"
     $bepInExRoot = Join-Path $gameDir "BepInEx"
     $coreDir = Join-Path $bepInExRoot "core"
     $pluginsDir = Join-Path $bepInExRoot "plugins"
@@ -91,11 +123,17 @@ Console.WriteLine("SmokeGame main reached");
     $commonPath = Join-Path $coreDir "BepInEx.NET.Common.dll"
     $gameDll = Join-Path $gameDir "SmokeGame.dll"
     $logPath = Join-Path $bepInExRoot "LogOutput.log"
+    $duplicateLoaderPath = Join-Path $duplicateEntrypointDir "BepInEx.NET.CoreCLR.dll"
 
     Assert-FileExists -Path $loaderPath -Description "Startup hook loader"
     Assert-FileExists -Path $corePath -Description "BepInEx core assembly"
     Assert-FileExists -Path $commonPath -Description "BepInEx .NET common assembly"
     Assert-FileExists -Path $gameDll -Description "Smoke game assembly"
+
+    Assert-FileExists -Path $d3d11HookPath -Description "Client d3d11 hook"
+
+    New-Item -ItemType Directory -Force -Path $duplicateEntrypointDir | Out-Null
+    Copy-Item -LiteralPath $loaderPath -Destination $duplicateLoaderPath -Force
 
     New-Item -ItemType Directory -Force -Path $pluginProjectDir | Out-Null
     New-Item -ItemType Directory -Force -Path $pluginsDir | Out-Null
@@ -141,7 +179,9 @@ public sealed class SmokePlugin : BasePlugin
     Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
 
     $previousStartupHooks = [Environment]::GetEnvironmentVariable("DOTNET_STARTUP_HOOKS", "Process")
+    $previousDuplicateEntrypoint = [Environment]::GetEnvironmentVariable("BEPINEX_SMOKE_DUPLICATE_ENTRYPOINT", "Process")
     [Environment]::SetEnvironmentVariable("DOTNET_STARTUP_HOOKS", (Resolve-Path -LiteralPath $loaderPath).Path, "Process")
+    [Environment]::SetEnvironmentVariable("BEPINEX_SMOKE_DUPLICATE_ENTRYPOINT", (Resolve-Path -LiteralPath $duplicateLoaderPath).Path, "Process")
 
     try {
         & dotnet $gameDll | Out-Host
@@ -151,10 +191,15 @@ public sealed class SmokePlugin : BasePlugin
     }
     finally {
         [Environment]::SetEnvironmentVariable("DOTNET_STARTUP_HOOKS", $previousStartupHooks, "Process")
+        [Environment]::SetEnvironmentVariable("BEPINEX_SMOKE_DUPLICATE_ENTRYPOINT", $previousDuplicateEntrypoint, "Process")
     }
 
     Assert-FileExists -Path $logPath -Description "BepInEx disk log"
     $log = Get-Content -LiteralPath $logPath -Raw
+
+    Write-Host "----- Smoke test BepInEx log -----"
+    Write-Host $log.TrimEnd()
+    Write-Host "----- End smoke test BepInEx log -----"
 
     Assert-LogContains -Log $log -Text "Preloader started"
     Assert-LogContains -Log $log -Text "Preloader finished"
@@ -163,6 +208,12 @@ public sealed class SmokePlugin : BasePlugin
     Assert-LogContains -Log $log -Text "Loading [Smoke Test Plugin 1.0.0]"
     Assert-LogContains -Log $log -Text "Smoke test plugin loaded"
     Assert-LogContains -Log $log -Text "Chainloader startup complete"
+    Assert-LogContainsExactlyOnce -Log $log -Text "Preloader started"
+    Assert-LogContainsExactlyOnce -Log $log -Text "Chainloader initialized"
+    Assert-LogContainsExactlyOnce -Log $log -Text "1 plugin to load"
+    Assert-LogContainsExactlyOnce -Log $log -Text "Loading [Smoke Test Plugin 1.0.0]"
+    Assert-LogContainsExactlyOnce -Log $log -Text "Smoke test plugin loaded"
+    Assert-LogContainsExactlyOnce -Log $log -Text "Chainloader startup complete"
 
     $hasFatalPreloaderError = $log.IndexOf("[Fatal  : Preloader]", [System.StringComparison]::Ordinal) -ge 0 -or
                               $log.IndexOf("Unhandled fatal exception", [System.StringComparison]::Ordinal) -ge 0

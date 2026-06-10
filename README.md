@@ -14,8 +14,8 @@ It is based on upstream BepInEx commit:
 ```
 
 This project is not a full general-purpose BepInEx distribution. Non-CoreCLR
-runtime frontends and legacy launcher paths have been removed. The remaining
-mod loader starts through Romestead's CoreCLR startup hook path.
+runtime frontends and legacy launcher paths have been removed so the package can
+stay focused on Romestead's .NET 8 / MonoGame build.
 
 ## Features
 
@@ -23,7 +23,8 @@ mod loader starts through Romestead's CoreCLR startup hook path.
 - BepInEx-style `BepInEx/plugins`, `BepInEx/config`, and `BepInEx/core`
   layout.
 - Console and file logging for real-time startup inspection.
-- CoreCLR startup hook entrypoint for Romestead.
+- Add-only client installation.
+- CoreCLR loading path for Romestead.
 - HarmonyX-based runtime patching, updated to HarmonyX `2.16.1`.
 - No Romestead game binaries, game assets, Steam files, saves, or logs.
 - No Steam ownership check or DRM bypass.
@@ -37,48 +38,39 @@ For normal users, use the release package for your platform.
 1. In Steam, right-click Romestead.
 2. Open `Manage` -> `Browse local files`.
 3. Extract the `win-x64` release archive directly into the Romestead game folder.
-4. Confirm that `install.bat` is next to `Romestead.exe`.
-5. Run `install.bat`.
-6. Start Romestead through Steam.
+4. Confirm that the package files are next to `Romestead.exe`.
+5. Start Romestead through Steam.
 
 After extracting the Windows package, the game folder should look like this:
 
 ```text
 Romestead/
   Romestead.exe
+  d3d11.dll
   BepInEx.NET.CoreCLR.dll
   BepInEx.NET.CoreCLR.deps.json
-  install.bat
-  uninstall.bat
   BepInEx/
     core/
 ```
 
-### Linux
+### Linux / Steam Proton
 
-Linux support is experimental and has not been tested as broadly as Windows.
+Romestead does not currently have a native Linux client build. Use the
+`linux-x64` package when running Romestead through Steam Proton.
 
 1. In Steam, open Romestead's local files.
 2. Extract the `linux-x64` release archive directly into the Romestead game folder.
-3. Confirm that `install.sh` is next to `Romestead.runtimeconfig.json`.
-4. Run:
-
-```sh
-chmod +x ./install.sh
-./install.sh
-```
-
-5. Start Romestead through Steam.
+3. Confirm that the package files are next to `Romestead.exe`.
+4. Start Romestead through Steam.
 
 After extracting the Linux package, the game folder should look like this:
 
 ```text
 Romestead/
-  Romestead.runtimeconfig.json
+  Romestead.exe
+  d3d11.dll
   BepInEx.NET.CoreCLR.dll
   BepInEx.NET.CoreCLR.deps.json
-  install.sh
-  uninstall.sh
   BepInEx/
     core/
 ```
@@ -98,42 +90,29 @@ Romestead/BepInEx/LogOutput.log
 Romestead should still be launched through Steam. Direct `Romestead.exe` or
 `dotnet Romestead.dll` launches may hit the game's Steam startup checks.
 
-Steam file verification or a Romestead game update may restore the game's
-runtime config and remove the loader hook. If BepInEx stops starting after
-either of these, run the installer again from the game folder.
+If BepInEx stops starting after a game update, extract the matching package into
+the game folder again.
 
-### Manual install from a local build
+### Local build package
 
-Build the loader first:
+For local testing, build a release-style package and install it the same way as
+the public release:
 
 ```powershell
-dotnet build .\BepInEx.sln -c Release
+.\packaging\package-release.ps1 -Configuration Release -Runtime win-x64
 ```
 
-The CoreCLR package is produced under:
+For the Steam Proton package:
+
+```powershell
+.\packaging\package-release.ps1 -Configuration Release -Runtime linux-x64
+```
+
+The generated archives are written to:
 
 ```text
-bin/NET.CoreCLR/net8.0
+artifacts/
 ```
-
-Copy the CoreCLR output into the game directory in the same shape as a BepInEx
-CoreCLR install:
-
-```text
-Romestead/
-  BepInEx.NET.CoreCLR.dll
-  BepInEx.NET.CoreCLR.deps.json
-  BepInEx/
-    core/
-```
-
-Set Romestead's `Romestead.runtimeconfig.json` startup hook to the loader:
-
-```json
-"STARTUP_HOOKS": "F:\\SteamLibrary\\steamapps\\common\\romestead\\BepInEx.NET.CoreCLR.dll"
-```
-
-The release package installer performs this step automatically.
 
 ## Making Romestead Mods
 

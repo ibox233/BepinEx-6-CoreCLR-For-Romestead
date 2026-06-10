@@ -13,6 +13,7 @@ $releaseTemplate = Join-Path (Join-Path $repoRoot "packaging") "release"
 $loaderPaths = @(
     "BepInEx.Core",
     "BepInEx.Preloader.Core",
+    "Native",
     "Runtimes/NET",
     "BepInEx.sln",
     "Directory.Build.props",
@@ -82,15 +83,23 @@ foreach ($fileName in $coreFiles) {
 
 Copy-Item -LiteralPath (Join-Path $releaseTemplate "README.txt") -Destination $packageRoot -Force
 
-if ($Runtime.StartsWith("linux", [System.StringComparison]::OrdinalIgnoreCase)) {
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.sh") -Destination $packageRoot -Force
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.sh") -Destination $packageRoot -Force
-} else {
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.bat") -Destination $packageRoot -Force
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "install.ps1") -Destination $packageRoot -Force
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.bat") -Destination $packageRoot -Force
-    Copy-Item -LiteralPath (Join-Path $releaseTemplate "uninstall.ps1") -Destination $packageRoot -Force
+$d3d11ShimManifest = Join-Path (Join-Path (Join-Path $repoRoot "Native") "Romestead.D3D11Shim") "Cargo.toml"
+$d3d11ShimOutput = Join-Path (Join-Path (Join-Path (Join-Path $repoRoot "Native") "Romestead.D3D11Shim") "target\release") "romestead_d3d11_shim.dll"
+
+if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    throw "Cargo was not found. Install Rust toolchain before packaging the d3d11 hook."
 }
+
+& cargo build --manifest-path $d3d11ShimManifest --release
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to build Romestead d3d11 hook."
+}
+
+if (-not (Test-Path -LiteralPath $d3d11ShimOutput)) {
+    throw "Expected d3d11 hook output is missing: $d3d11ShimOutput"
+}
+
+Copy-Item -LiteralPath $d3d11ShimOutput -Destination (Join-Path $packageRoot "d3d11.dll") -Force
 
 Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $licensesPackagePath "BepInEx-LGPL-2.1.txt") -Force
 Copy-Item -LiteralPath (Join-Path (Join-Path $releaseTemplate "licenses") "HarmonyX-MIT.txt") -Destination (Join-Path $licensesPackagePath "HarmonyX-MIT.txt") -Force

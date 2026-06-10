@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using BepInEx.ConsoleUtil;
 using HarmonyLib;
 using MonoMod.Utils;
@@ -78,8 +79,7 @@ internal class WindowsConsoleDriver : IConsoleDriver
         // Make sure of ConsoleEncoding helper class because on some Monos
         // Encoding.GetEncoding throws NotImplementedException on most codepages
         // NOTE: We don't set Console.OutputEncoding because it resets any existing Console.Out writers
-        if (!useManagedEncoder)
-            ConsoleEncoding.ConsoleCodePage = codepage;
+        ConsoleEncoding.ConsoleCodePage = codepage;
 
         // If stdout exists, write to it, otherwise make it the same as console out
         // Not sure if this is needed? Does the original Console.Out still work?
@@ -100,7 +100,7 @@ internal class WindowsConsoleDriver : IConsoleDriver
         var consoleOutStream = OpenFileStream(ConsoleWindow.ConsoleOutHandle);
         // Can't use Console.OutputEncoding because it can be null (i.e. not preference by user)
         ConsoleOut = new StreamWriter(consoleOutStream,
-                                      useManagedEncoder ? Utility.UTF8NoBom : ConsoleEncoding.OutputEncoding)
+                                      GetConsoleOutputEncoding(codepage))
         {
             AutoFlush = true
         };
@@ -126,6 +126,14 @@ internal class WindowsConsoleDriver : IConsoleDriver
     }
 
     public void SetConsoleTitle(string title) => ConsoleWindow.Title = title;
+
+    private Encoding GetConsoleOutputEncoding(uint codepage)
+    {
+        if (useManagedEncoder && codepage == Utility.UTF8NoBom.CodePage)
+            return Utility.UTF8NoBom;
+
+        return ConsoleEncoding.GetEncoding(codepage);
+    }
 
     private static Stream OpenFileStream(IntPtr handle)
     {

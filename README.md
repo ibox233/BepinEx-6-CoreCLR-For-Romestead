@@ -1,264 +1,85 @@
 # Romestead BepInEx Mod Loader
 
-A Romestead-specific mod loader based on BepInEx 6 BE755 for .NET/CoreCLR.
+Romestead-specific BepInEx 6 loader for the game's .NET 8 / MonoGame client.
 
-This modified version of BepInEx for Romestead is created and maintained by
-ibox233 (Ice Box Studio). It keeps the familiar BepInEx plugin model, folder
-layout, console logging, file logging, and HarmonyX patching workflow, while
-narrowing the runtime path to Romestead's .NET 8 / MonoGame build.
-
-It is based on upstream BepInEx commit:
+This fork is based on BepInEx 6 BE764:
 
 ```text
-3fab71a1914132a1ce3a545caf3192da603f2258
+5f39645992ab8b944cad394b63470e4920f8b16d
 ```
 
-This project is not a full general-purpose BepInEx distribution. Non-CoreCLR
-runtime frontends and legacy launcher paths have been removed so the package can
-stay focused on Romestead's .NET 8 / MonoGame build.
+It is not a general BepInEx release. It is maintained for Romestead and keeps
+only the runtime path this game needs.
 
-## Features
+It uses a local `d3d11.dll` hook and keeps the usual BepInEx folder layout,
+logging, and HarmonyX plugin patching.
 
-- BepInEx plugin metadata and chainloader model.
-- BepInEx-style `BepInEx/plugins`, `BepInEx/config`, and `BepInEx/core`
-  layout.
-- Console and file logging for real-time startup inspection.
-- Add-only client installation.
-- CoreCLR loading path for Romestead.
-- HarmonyX-based runtime patching, updated to HarmonyX `2.16.1`.
-- No Romestead game binaries, game assets, Steam files, saves, or logs.
-- No Steam ownership check or DRM bypass.
+## Installation
 
-## Installing into Romestead
-
-For normal users, use the release package for your platform.
+Use the release package for your platform.
 
 ### Windows
 
-1. In Steam, right-click Romestead.
-2. Open `Manage` -> `Browse local files`.
-3. Extract the `win-x64` release archive directly into the Romestead game folder.
-4. Confirm that the package files are next to `Romestead.exe`.
-5. Start Romestead through Steam.
-
-After extracting the Windows package, the game folder should look like this:
-
-```text
-Romestead/
-  Romestead.exe
-  d3d11.dll
-  BepInEx.NET.CoreCLR.dll
-  BepInEx.NET.CoreCLR.deps.json
-  BepInEx/
-    core/
-```
+1. Open Romestead's local files from Steam.
+2. Extract the `win-x64` package into the game folder.
+3. Confirm that `d3d11.dll` is next to `Romestead.exe`.
 
 ### Linux / Steam Proton
 
-Romestead does not currently have a native Linux client build. Use the
-`linux-x64` package when running Romestead through Steam Proton.
+Romestead currently runs on Linux through Proton, not as a native Linux build.
 
-1. In Steam, open Romestead's local files.
-2. Extract the `linux-x64` release archive directly into the Romestead game folder.
-3. Confirm that the package files are next to `Romestead.exe`.
-4. Start Romestead through Steam.
+1. Open Romestead's local files from Steam.
+2. Extract the `linux-x64` package into the game folder.
+3. Confirm that `d3d11.dll` is next to `Romestead.exe`.
 
-After extracting the Linux package, the game folder should look like this:
+Plugin DLLs go in:
 
 ```text
-Romestead/
-  Romestead.exe
-  d3d11.dll
-  BepInEx.NET.CoreCLR.dll
-  BepInEx.NET.CoreCLR.deps.json
-  BepInEx/
-    core/
+BepInEx/plugins
 ```
 
-Plugin DLLs go here:
+Logs are written to:
 
 ```text
-Romestead/BepInEx/plugins
+BepInEx/LogOutput.log
 ```
 
-Logs are written here:
+## Building
 
-```text
-Romestead/BepInEx/LogOutput.log
-```
-
-Romestead should still be launched through Steam. Direct `Romestead.exe` or
-`dotnet Romestead.dll` launches may hit the game's Steam startup checks.
-
-If BepInEx stops starting after a game update, extract the matching package into
-the game folder again.
-
-### Local build package
-
-For local testing, build a release-style package and install it the same way as
-the public release:
-
-```powershell
-.\packaging\package-release.ps1 -Configuration Release -Runtime win-x64
-```
-
-For the Steam Proton package:
-
-```powershell
-.\packaging\package-release.ps1 -Configuration Release -Runtime linux-x64
-```
-
-The generated archives are written to:
-
-```text
-artifacts/
-```
-
-## Making Romestead Mods
-
-Romestead plugins are standard BepInEx CoreCLR plugins. A typical plugin should
-target `net8.0-windows`, reference BepInEx from `BepInEx/core`, reference game
-assemblies only for compiling, and output one plugin DLL into
-`BepInEx/plugins`.
-
-Suggested project structure:
-
-```text
-MyMod/
-  MyMod.csproj
-  PluginInfo.cs
-  MyMod.cs
-  Properties/
-    AssemblyInfo.cs
-  Features/
-  Patches/
-```
-
-Common compile-time references:
-
-```text
-BepInEx/core/BepInEx.Core.dll
-BepInEx/core/BepInEx.NET.Common.dll
-BepInEx/core/0Harmony.dll
-Romestead.dll
-CandideServer.dll
-Shared.dll
-CandideCreator.Shared.dll
-MonoGame.Framework.dll
-```
-
-Reference the Romestead game DLLs from the local game installation only. Do not
-redistribute game DLLs with your mod.
-
-Minimal plugin entrypoint:
-
-```csharp
-using System;
-using System.Reflection;
-using BepInEx;
-using BepInEx.Logging;
-using BepInEx.NET.Common;
-using HarmonyLib;
-
-namespace MyMod
-{
-    [BepInPlugin(PluginInfo.PLUGIN_GUID, PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
-    public class MyMod : BasePlugin
-    {
-        public static MyMod _Instance;
-        public static MyMod Instance => _Instance;
-        internal static ManualLogSource Logger { get; private set; }
-
-        private Harmony _harmony;
-
-        public override void Load()
-        {
-            _Instance = this;
-            Logger = Log;
-
-            try
-            {
-                _harmony = new Harmony(PluginInfo.PLUGIN_GUID);
-                _harmony.PatchAll(Assembly.GetExecutingAssembly());
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError($"{PluginInfo.PLUGIN_NAME} initialization error: {ex.Message}\n{ex.StackTrace}");
-            }
-        }
-    }
-}
-```
-
-Minimal `PluginInfo.cs`:
-
-```csharp
-namespace MyMod
-{
-    public static class PluginInfo
-    {
-        public const string PLUGIN_GUID = "YourName.Romestead.MyMod";
-        public const string PLUGIN_NAME = "MyMod";
-        public const string PLUGIN_VERSION = "1.0.0";
-        public const string PLUGIN_AUTHOR = "YourName";
-    }
-}
-```
-
-Minimal HarmonyX patch example:
-
-```csharp
-using Candide.GameModels.Managers;
-using HarmonyLib;
-using Microsoft.Xna.Framework;
-using Shared.Models.Construction;
-
-namespace MyMod.Patches.Construction
-{
-    [HarmonyPatch(typeof(ConstructionSitesManager), "CreateConstructionSite")]
-    public static class ConstructionSitesManagerCreateConstructionSitePatch
-    {
-        [HarmonyPrefix]
-        public static void Prefix(ConstructionModel construction, Point tilePosition)
-        {
-            MyMod.Logger.LogInfo($"Creating construction site: {construction.Id} at {tilePosition}.");
-        }
-    }
-}
-```
-
-## Building This Loader
-
-Use the normal BepInEx solution build:
+Build the solution:
 
 ```powershell
 dotnet build .\BepInEx.sln -c Release
 ```
 
-The CoreCLR output is produced under:
+Create a release package:
 
-```text
-bin/NET.CoreCLR/net8.0
+```powershell
+.\packaging\package-release.ps1 -Configuration Release -Runtime win-x64
+.\packaging\package-release.ps1 -Configuration Release -Runtime linux-x64
 ```
+
+Packages are written to `artifacts/`.
+
+## Notes
+
+- If BepInEx stops loading after a game update, extract the package again.
+- Older installs may still have a `STARTUP_HOOKS` entry in
+  `Romestead.runtimeconfig.json`. The current client package does not need it.
 
 ## Credits
 
-| Project / Role | Credits |
-| --- | --- |
-| BepInEx | BepInEx team and contributors |
-| Romestead-specific modified version | Modified by ibox233 / Ice Box Studio |
-| HarmonyX | HarmonyX contributors |
-| MonoMod, Mono.Cecil, and other dependencies | Their respective maintainers and contributors |
-| Romestead | Romestead's developer and publisher; this project is unofficial and not affiliated with them |
+- BepInEx team and contributors
+- Romestead-specific changes by ibox233 / Ice Box Studio
+- HarmonyX, MonoMod, Mono.Cecil, and other dependency maintainers
+
+This project is unofficial and is not affiliated with Romestead's developer or
+publisher.
 
 ## License
 
-BepInEx is licensed under LGPL-2.1. This modified version preserves the upstream
-license and copyright notices.
+BepInEx is licensed under LGPL-2.1. This fork keeps the upstream license and
+copyright notices.
 
-Third-party dependencies keep their own licenses. Do not publish Romestead game
-binaries, game assets, Steam files, generated logs containing local user paths,
-or any other copyrighted game content.
-
-See [ROMESTEAD_FORK.md](ROMESTEAD_FORK.md) for additional fork notes and
-redistribution guidance.
+Third-party dependencies keep their own licenses. Do not redistribute Romestead
+game binaries, game assets, Steam files, or user logs.

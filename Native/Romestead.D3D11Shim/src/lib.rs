@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::ffi::{CString, c_char, c_void};
+use std::ffi::{c_char, c_void};
 #[cfg(debug_assertions)]
 use std::fs::OpenOptions;
 #[cfg(debug_assertions)]
@@ -14,26 +14,33 @@ use std::sync::Once;
 type Bool = i32;
 type Dword = u32;
 type Farproc = *mut c_void;
+type Hresult = i32;
 type Hmodule = *mut c_void;
 type HostfxrHandle = *mut c_void;
 type Lpcstr = *const c_char;
-type Lpvoid = *mut c_void;
+type Ntstatus = i32;
+type RawArg = usize;
+type SizeT = usize;
+type Uint = u32;
 
-const DLL_PROCESS_ATTACH: Dword = 1;
+const E_FAIL: Hresult = 0x80004005u32 as Hresult;
+const GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS: Dword = 0x00000004;
+const GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT: Dword = 0x00000002;
 const HDT_LOAD_ASSEMBLY_AND_GET_FUNCTION_POINTER: i32 = 5;
+const STATUS_UNSUCCESSFUL: Ntstatus = 0xC0000001u32 as Ntstatus;
 
 static INIT: Once = Once::new();
 static BOOTSTRAP: Once = Once::new();
 static mut REAL_D3D11: Hmodule = ptr::null_mut();
-static mut SELF_MODULE: Hmodule = ptr::null_mut();
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
-    fn DisableThreadLibraryCalls(hLibModule: Hmodule) -> Bool;
     fn GetCommandLineW() -> *const u16;
+    fn GetModuleHandleExW(dwFlags: Dword, lpModuleName: *const u16, phModule: *mut Hmodule)
+    -> Bool;
     fn GetModuleFileNameW(hModule: Hmodule, lpFilename: *mut u16, nSize: Dword) -> Dword;
     fn GetProcAddress(hModule: Hmodule, lpProcName: Lpcstr) -> Farproc;
-    fn LoadLibraryA(lpLibFileName: Lpcstr) -> Hmodule;
+    fn GetSystemDirectoryW(lpBuffer: *mut u16, uSize: Uint) -> Uint;
     fn LoadLibraryW(lpLibFileName: *const u16) -> Hmodule;
 }
 
@@ -67,16 +74,28 @@ unsafe fn init() {
     INIT.call_once(|| unsafe {
         log_line("d3d11 shim initialized");
 
-        let Ok(path) = CString::new("C:\\Windows\\System32\\d3d11.dll") else {
+        let Some(path) = system_d3d11_path() else {
             return;
         };
 
-        REAL_D3D11 = LoadLibraryA(path.as_ptr());
+        REAL_D3D11 = LoadLibraryW(path.as_ptr());
         log_line(&format!(
-            "LoadLibraryA real d3d11 => 0x{:x}",
+            "LoadLibraryW real d3d11 => 0x{:x}",
             REAL_D3D11 as usize
         ));
     });
+}
+
+unsafe fn system_d3d11_path() -> Option<Vec<u16>> {
+    let mut buffer = [0u16; 32768];
+    let len = unsafe { GetSystemDirectoryW(buffer.as_mut_ptr(), buffer.len() as Uint) } as usize;
+    if len == 0 || len >= buffer.len() {
+        return None;
+    }
+
+    let mut path = PathBuf::from(std::ffi::OsString::from_wide(&buffer[..len]));
+    path.push("d3d11.dll");
+    Some(wide_path(&path))
 }
 
 unsafe fn get_proc<T>(module: Hmodule, name: &[u8]) -> Option<T> {
@@ -112,6 +131,19 @@ unsafe fn module_dir(module: Hmodule) -> Option<PathBuf> {
 
     let path = PathBuf::from(std::ffi::OsString::from_wide(&buf[..len]));
     path.parent().map(Path::to_path_buf)
+}
+
+unsafe fn current_module_dir() -> Option<PathBuf> {
+    let mut module = ptr::null_mut();
+    let flags =
+        GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+    let address = current_module_dir as *const () as *const u16;
+
+    if unsafe { GetModuleHandleExW(flags, address, &mut module) } == 0 || module.is_null() {
+        return None;
+    }
+
+    unsafe { module_dir(module) }
 }
 
 fn wide_path(path: &Path) -> Vec<u16> {
@@ -229,7 +261,7 @@ unsafe fn bootstrap_bepinex() {
             return;
         }
 
-        let Some(game_dir) = module_dir(SELF_MODULE) else {
+        let Some(game_dir) = current_module_dir() else {
             log_line("could not determine shim directory");
             return;
         };
@@ -329,113 +361,186 @@ unsafe fn bootstrap_bepinex() {
     });
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn DllMain(hinst: Hmodule, reason: Dword, _reserved: Lpvoid) -> Bool {
-    if reason == DLL_PROCESS_ATTACH {
-        unsafe {
-            SELF_MODULE = hinst;
-            DisableThreadLibraryCalls(hinst);
+fn missing_hresult(name: &str) -> Hresult {
+    log_line(&format!("missing real d3d11 export: {}", name));
+    E_FAIL
+}
+
+fn missing_i32(name: &str) -> i32 {
+    log_line(&format!("missing real d3d11 export: {}", name));
+    -1
+}
+
+fn missing_ntstatus(name: &str) -> Ntstatus {
+    log_line(&format!("missing real d3d11 export: {}", name));
+    STATUS_UNSUCCESSFUL
+}
+
+fn missing_dword(name: &str) -> Dword {
+    log_line(&format!("missing real d3d11 export: {}", name));
+    0
+}
+
+fn missing_size_t(name: &str) -> SizeT {
+    log_line(&format!("missing real d3d11 export: {}", name));
+    0
+}
+
+fn missing_void(name: &str) {
+    log_line(&format!("missing real d3d11 export: {}", name));
+}
+
+macro_rules! forward_d3d11 {
+    ($name:ident, $ret:ty, $missing:path, [$($arg:ident: $arg_ty:ty),* $(,)?]) => {
+        #[unsafe(no_mangle)]
+        pub unsafe extern "system" fn $name($($arg: $arg_ty),*) -> $ret {
+            type F = unsafe extern "system" fn($($arg_ty),*) -> $ret;
+
+            unsafe {
+                bootstrap_bepinex();
+                get_d3d11_fn::<F>(concat!(stringify!($name), "\0").as_bytes()).map_or_else(
+                    || $missing(stringify!($name)),
+                    |f| f($($arg),*)
+                )
+            }
         }
-    }
-
-    1
+    };
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn D3D11CreateDevice(
-    pAdapter: *mut c_void,
-    DriverType: u32,
-    Software: Hmodule,
-    Flags: u32,
-    pFeatureLevels: *const u32,
-    FeatureLevels: u32,
-    SDKVersion: u32,
+forward_d3d11!(D3D11CreateDeviceForD3D12, Hresult, missing_hresult, [
+    pDevice: *mut c_void,
+    Flags: Dword,
+    pFeatureLevels: *const Dword,
+    FeatureLevels: Dword,
+    ppCommandQueues: *const *mut c_void,
+    NumQueues: Dword,
+    NodeMask: Dword,
     ppDevice: *mut *mut c_void,
-    pFeatureLevel: *mut u32,
     ppImmediateContext: *mut *mut c_void,
-) -> i32 {
-    type F = extern "system" fn(
-        *mut c_void,
-        u32,
-        Hmodule,
-        u32,
-        *const u32,
-        u32,
-        u32,
-        *mut *mut c_void,
-        *mut u32,
-        *mut *mut c_void,
-    ) -> i32;
-
-    unsafe {
-        bootstrap_bepinex();
-        get_d3d11_fn::<F>(b"D3D11CreateDevice\0").map_or(-1, |f| {
-            f(
-                pAdapter,
-                DriverType,
-                Software,
-                Flags,
-                pFeatureLevels,
-                FeatureLevels,
-                SDKVersion,
-                ppDevice,
-                pFeatureLevel,
-                ppImmediateContext,
-            )
-        })
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn D3D11CreateDeviceAndSwapChain(
+    pChosenFeatureLevel: *mut Dword,
+]);
+forward_d3d11!(D3D11CreateDevice, Hresult, missing_hresult, [
     pAdapter: *mut c_void,
-    DriverType: u32,
+    DriverType: Dword,
     Software: Hmodule,
-    Flags: u32,
-    pFeatureLevels: *const u32,
-    FeatureLevels: u32,
-    SDKVersion: u32,
+    Flags: Dword,
+    pFeatureLevels: *const Dword,
+    FeatureLevels: Dword,
+    SDKVersion: Dword,
+    ppDevice: *mut *mut c_void,
+    pFeatureLevel: *mut Dword,
+    ppImmediateContext: *mut *mut c_void,
+]);
+forward_d3d11!(D3D11CreateDeviceAndSwapChain, Hresult, missing_hresult, [
+    pAdapter: *mut c_void,
+    DriverType: Dword,
+    Software: Hmodule,
+    Flags: Dword,
+    pFeatureLevels: *const Dword,
+    FeatureLevels: Dword,
+    SDKVersion: Dword,
     pSwapChainDesc: *const c_void,
     ppSwapChain: *mut *mut c_void,
     ppDevice: *mut *mut c_void,
-    pFeatureLevel: *mut u32,
+    pFeatureLevel: *mut Dword,
     ppImmediateContext: *mut *mut c_void,
-) -> i32 {
-    type F = extern "system" fn(
-        *mut c_void,
-        u32,
-        Hmodule,
-        u32,
-        *const u32,
-        u32,
-        u32,
-        *const c_void,
-        *mut *mut c_void,
-        *mut *mut c_void,
-        *mut u32,
-        *mut *mut c_void,
-    ) -> i32;
+]);
+forward_d3d11!(D3D11On12CreateDevice, Hresult, missing_hresult, [
+    pDevice: *mut c_void,
+    Flags: Dword,
+    pFeatureLevels: *const Dword,
+    FeatureLevels: Dword,
+    ppCommandQueues: *const *mut c_void,
+    NumQueues: Dword,
+    NodeMask: Dword,
+    ppDevice: *mut *mut c_void,
+    ppImmediateContext: *mut *mut c_void,
+    pChosenFeatureLevel: *mut Dword,
+]);
+forward_d3d11!(D3D11CoreCreateDevice, i32, missing_i32, [
+    a: RawArg,
+    b: RawArg,
+    c: RawArg,
+    lpModuleName: Lpcstr,
+    e: RawArg,
+    f: RawArg,
+    g: RawArg,
+    h: RawArg,
+    i: RawArg,
+    j: RawArg,
+]);
+forward_d3d11!(D3D11CoreCreateLayeredDevice, Hresult, missing_hresult, [
+    unknown0: *const c_void,
+    unknown1: Dword,
+    unknown2: *const c_void,
+    riid: *const c_void,
+    ppvObj: *mut *mut c_void,
+]);
+forward_d3d11!(D3D11CoreGetLayeredDeviceSize, SizeT, missing_size_t, [
+    unknown0: *const c_void,
+    unknown1: Dword,
+]);
+forward_d3d11!(D3D11CoreRegisterLayers, Hresult, missing_hresult, [
+    unknown0: *const c_void,
+    unknown1: Dword,
+]);
+forward_d3d11!(CreateDirect3D11DeviceFromDXGIDevice, Hresult, missing_hresult, [
+    dxgiDevice: *mut c_void,
+    graphicsDevice: *mut *mut c_void,
+]);
+forward_d3d11!(CreateDirect3D11SurfaceFromDXGISurface, Hresult, missing_hresult, [
+    dxgiSurface: *mut c_void,
+    graphicsSurface: *mut *mut c_void,
+]);
+forward_d3d11!(EnableFeatureLevelUpgrade, Hresult, missing_hresult, []);
+forward_d3d11!(OpenAdapter10, i32, missing_i32, [adapter: *mut c_void]);
+forward_d3d11!(OpenAdapter10_2, i32, missing_i32, [adapter: *mut c_void]);
 
-    unsafe {
-        bootstrap_bepinex();
-        get_d3d11_fn::<F>(b"D3D11CreateDeviceAndSwapChain\0").map_or(-1, |f| {
-            f(
-                pAdapter,
-                DriverType,
-                Software,
-                Flags,
-                pFeatureLevels,
-                FeatureLevels,
-                SDKVersion,
-                pSwapChainDesc,
-                ppSwapChain,
-                ppDevice,
-                pFeatureLevel,
-                ppImmediateContext,
-            )
-        })
-    }
-}
+forward_d3d11!(D3DKMTCloseAdapter, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTCreateAllocation, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTCreateContext, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTCreateDevice, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTCreateSynchronizationObject, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTDestroyAllocation, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTDestroyContext, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTDestroyDevice, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTDestroySynchronizationObject, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTEscape, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetContextSchedulingPriority, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetDeviceState, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetDisplayModeList, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetMultisampleMethodList, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetRuntimeData, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTGetSharedPrimaryHandle, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTLock, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTOpenAdapterFromHdc, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTOpenResource, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTPresent, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTQueryAdapterInfo, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTQueryAllocationResidency, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTQueryResourceInfo, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTRender, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetAllocationPriority, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetContextSchedulingPriority, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetDisplayMode, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetDisplayPrivateDriverFormat, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetGammaRamp, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSetVidPnSourceOwner, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTSignalSynchronizationObject, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTUnlock, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTWaitForSynchronizationObject, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+forward_d3d11!(D3DKMTWaitForVerticalBlankEvent, Ntstatus, missing_ntstatus, [data: *mut c_void]);
+
+forward_d3d11!(D3DPerformance_BeginEvent, i32, missing_i32, [
+    color: Dword,
+    name: *const u16,
+]);
+forward_d3d11!(D3DPerformance_EndEvent, i32, missing_i32, []);
+forward_d3d11!(D3DPerformance_GetStatus, Dword, missing_dword, []);
+forward_d3d11!(D3DPerformance_SetMarker, (), missing_void, [
+    color: Dword,
+    name: *const u16,
+]);
 
 #[cfg(test)]
 mod tests {

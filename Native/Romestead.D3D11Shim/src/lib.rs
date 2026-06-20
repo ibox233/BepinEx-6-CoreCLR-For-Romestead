@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::ffi::{c_char, c_void, CString};
+use std::ffi::{CString, c_char, c_void};
 #[cfg(debug_assertions)]
 use std::fs::OpenOptions;
 #[cfg(debug_assertions)]
@@ -30,6 +30,7 @@ static mut SELF_MODULE: Hmodule = ptr::null_mut();
 #[link(name = "kernel32")]
 unsafe extern "system" {
     fn DisableThreadLibraryCalls(hLibModule: Hmodule) -> Bool;
+    fn GetCommandLineW() -> *const u16;
     fn GetModuleFileNameW(hModule: Hmodule, lpFilename: *mut u16, nSize: Dword) -> Dword;
     fn GetProcAddress(hModule: Hmodule, lpProcName: Lpcstr) -> Farproc;
     fn LoadLibraryA(lpLibFileName: Lpcstr) -> Hmodule;
@@ -71,7 +72,10 @@ unsafe fn init() {
         };
 
         REAL_D3D11 = LoadLibraryA(path.as_ptr());
-        log_line(&format!("LoadLibraryA real d3d11 => 0x{:x}", REAL_D3D11 as usize));
+        log_line(&format!(
+            "LoadLibraryA real d3d11 => 0x{:x}",
+            REAL_D3D11 as usize
+        ));
     });
 }
 
@@ -82,7 +86,10 @@ unsafe fn get_proc<T>(module: Hmodule, name: &[u8]) -> Option<T> {
 
     let proc = unsafe { GetProcAddress(module, name.as_ptr() as Lpcstr) };
     if proc.is_null() {
-        log_line(&format!("missing export: {}", String::from_utf8_lossy(&name[..name.len() - 1])));
+        log_line(&format!(
+            "missing export: {}",
+            String::from_utf8_lossy(&name[..name.len() - 1])
+        ));
         None
     } else {
         Some(unsafe { std::mem::transmute_copy(&proc) })
@@ -112,12 +119,115 @@ fn wide_path(path: &Path) -> Vec<u16> {
 }
 
 fn wide_str(value: &str) -> Vec<u16> {
-    std::ffi::OsStr::new(value).encode_wide().chain(once(0)).collect()
+    std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(once(0))
+        .collect()
+}
+
+unsafe fn command_line() -> String {
+    unsafe {
+        let command_line = GetCommandLineW();
+        if command_line.is_null() {
+            return String::new();
+        }
+
+        let mut len = 0usize;
+        while *command_line.add(len) != 0 {
+            len += 1;
+        }
+
+        String::from_utf16_lossy(std::slice::from_raw_parts(command_line, len))
+    }
+}
+
+fn parse_command_line(command_line: &str) -> Vec<String> {
+    let mut args = Vec::new();
+    let mut current = String::new();
+    let mut backslashes = 0usize;
+    let mut in_quotes = false;
+
+    for ch in command_line.chars() {
+        match ch {
+            '\\' => {
+                backslashes += 1;
+            }
+            '"' => {
+                current.extend(std::iter::repeat('\\').take(backslashes / 2));
+
+                if backslashes % 2 == 0 {
+                    in_quotes = !in_quotes;
+                } else {
+                    current.push('"');
+                }
+
+                backslashes = 0;
+            }
+            ' ' | '\t' if !in_quotes => {
+                current.extend(std::iter::repeat('\\').take(backslashes));
+                backslashes = 0;
+
+                if !current.is_empty() {
+                    args.push(std::mem::take(&mut current));
+                }
+            }
+            _ => {
+                current.extend(std::iter::repeat('\\').take(backslashes));
+                backslashes = 0;
+                current.push(ch);
+            }
+        }
+    }
+
+    current.extend(std::iter::repeat('\\').take(backslashes));
+
+    if !current.is_empty() {
+        args.push(current);
+    }
+
+    args
+}
+
+fn command_line_value(args: &[String], names: &[&str]) -> Option<String> {
+    for index in 0..args.len().saturating_sub(1) {
+        if names
+            .iter()
+            .any(|name| args[index].eq_ignore_ascii_case(name))
+        {
+            return Some(args[index + 1].clone());
+        }
+    }
+
+    None
+}
+
+fn doorstop_enabled(args: &[String]) -> bool {
+    let Some(value) = command_line_value(
+        args,
+        &[
+            "--doorstop-enable",
+            "--doorstop-enabled",
+            "--doorstop_enabled",
+        ],
+    ) else {
+        return true;
+    };
+
+    !matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "0" | "false" | "no" | "off"
+    )
 }
 
 unsafe fn bootstrap_bepinex() {
     BOOTSTRAP.call_once(|| unsafe {
         log_line("bootstrap begin");
+
+        let args = parse_command_line(&command_line());
+        if !doorstop_enabled(&args) {
+            log_line("doorstop disabled by command line");
+            return;
+        }
 
         let Some(game_dir) = module_dir(SELF_MODULE) else {
             log_line("could not determine shim directory");
@@ -139,12 +249,10 @@ unsafe fn bootstrap_bepinex() {
             return;
         }
 
-        let Some(initialize_for_runtime_config) =
-            get_proc::<HostfxrInitializeForRuntimeConfigFn>(
-                hostfxr,
-                b"hostfxr_initialize_for_runtime_config\0",
-            )
-        else {
+        let Some(initialize_for_runtime_config) = get_proc::<HostfxrInitializeForRuntimeConfigFn>(
+            hostfxr,
+            b"hostfxr_initialize_for_runtime_config\0",
+        ) else {
             return;
         };
 
@@ -162,7 +270,10 @@ unsafe fn bootstrap_bepinex() {
             ptr::null(),
             &mut context,
         );
-        log_line(&format!("hostfxr_initialize_for_runtime_config => 0x{:x}", rc));
+        log_line(&format!(
+            "hostfxr_initialize_for_runtime_config => 0x{:x}",
+            rc
+        ));
 
         let delegate_context = if rc < 0 || context.is_null() {
             ptr::null_mut()
@@ -189,7 +300,8 @@ unsafe fn bootstrap_bepinex() {
             return;
         }
 
-        let load_assembly: LoadAssemblyAndGetFunctionPointerFn = std::mem::transmute_copy(&load_assembly);
+        let load_assembly: LoadAssemblyAndGetFunctionPointerFn =
+            std::mem::transmute_copy(&load_assembly);
         let assembly_path = wide_path(&loader_path);
         let type_name = wide_str("BepInEx.NET.CoreCLR.NativeEntrypoint, BepInEx.NET.CoreCLR");
         let method_name = wide_str("Initialize");
@@ -203,7 +315,10 @@ unsafe fn bootstrap_bepinex() {
             ptr::null_mut(),
             &mut entrypoint,
         );
-        log_line(&format!("load_assembly_and_get_function_pointer => 0x{:x}", rc));
+        log_line(&format!(
+            "load_assembly_and_get_function_pointer => 0x{:x}",
+            rc
+        ));
         if rc < 0 || entrypoint.is_null() {
             return;
         }
@@ -319,5 +434,47 @@ pub unsafe extern "system" fn D3D11CreateDeviceAndSwapChain(
                 ppImmediateContext,
             )
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{doorstop_enabled, parse_command_line};
+
+    #[test]
+    fn parses_quoted_doorstop_target() {
+        let args = parse_command_line(
+            r#""Romestead.exe" --doorstop-enable true --doorstop-target "C:\r2 profile\BepInEx\core\BepInEx.NET.CoreCLR.dll""#,
+        );
+
+        assert_eq!(args[0], "Romestead.exe");
+        assert_eq!(args[1], "--doorstop-enable");
+        assert_eq!(args[2], "true");
+        assert_eq!(args[3], "--doorstop-target");
+        assert_eq!(
+            args[4],
+            r#"C:\r2 profile\BepInEx\core\BepInEx.NET.CoreCLR.dll"#
+        );
+    }
+
+    #[test]
+    fn doorstop_is_enabled_by_default() {
+        let args = parse_command_line(r#""Romestead.exe""#);
+
+        assert!(doorstop_enabled(&args));
+    }
+
+    #[test]
+    fn doorstop_can_be_disabled_by_v3_argument() {
+        let args = parse_command_line(r#""Romestead.exe" --doorstop-enable false"#);
+
+        assert!(!doorstop_enabled(&args));
+    }
+
+    #[test]
+    fn doorstop_can_be_disabled_by_v4_argument() {
+        let args = parse_command_line(r#""Romestead.exe" --doorstop-enabled 0"#);
+
+        assert!(!doorstop_enabled(&args));
     }
 }

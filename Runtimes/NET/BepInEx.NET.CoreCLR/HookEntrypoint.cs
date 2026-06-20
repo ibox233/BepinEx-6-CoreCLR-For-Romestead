@@ -49,10 +49,14 @@ internal class StartupHook
             if (assemblyFilename != null)
                 gameDirectory = Path.GetDirectoryName(assemblyFilename);
 
+            var bepinexRootDirectory = TryDetermineBepInExRootFromDoorstopTarget()
+                                    ?? TryDetermineBepInExRootFromCurrentAssembly()
+                                    ?? TryDetermineBepInExRootFromGameDirectory(gameDirectory);
+
             string bepinexCoreDirectory = null;
 
-            if (gameDirectory != null)
-                bepinexCoreDirectory = Path.Combine(gameDirectory, "BepInEx", "core");
+            if (bepinexRootDirectory != null)
+                bepinexCoreDirectory = Path.Combine(bepinexRootDirectory, "core");
 
             if (assemblyFilename == null || gameDirectory == null || !Directory.Exists(bepinexCoreDirectory))
             {
@@ -66,7 +70,7 @@ internal class StartupHook
 
             AppDomain.CurrentDomain.AssemblyResolve += SharedEntrypoint.RemoteResolve(ResolveDirectories);
 
-            NetCorePreloaderRunner.OuterMain(assemblyFilename);
+            NetCorePreloaderRunner.OuterMain(assemblyFilename, bepinexRootDirectory);
         }
         catch (Exception ex)
         {
@@ -172,6 +176,97 @@ internal class StartupHook
 
         return Path.Combine(gameDirectory, DoesNotExistPath);
     }
+
+    private static string TryDetermineBepInExRootFromDoorstopTarget()
+    {
+        var targetAssembly = GetCommandLineArgValue("--doorstop-target")
+                          ?? GetCommandLineArgValue("--doorstop-target-assembly")
+                          ?? GetCommandLineArgValue("--doorstop_target_assembly");
+
+        if (string.IsNullOrWhiteSpace(targetAssembly))
+            return null;
+
+        return TryDetermineBepInExRootFromTargetAssembly(targetAssembly);
+    }
+
+    private static string TryDetermineBepInExRootFromTargetAssembly(string targetAssembly)
+    {
+        string fullTargetAssemblyPath;
+
+        try
+        {
+            fullTargetAssemblyPath = Path.GetFullPath(targetAssembly);
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (!File.Exists(fullTargetAssemblyPath))
+            return null;
+
+        if (!string.Equals(Path.GetFileName(fullTargetAssemblyPath), "BepInEx.NET.CoreCLR.dll",
+                           StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var targetDirectory = Path.GetDirectoryName(fullTargetAssemblyPath);
+
+        if (targetDirectory == null)
+            return null;
+
+        if (string.Equals(Path.GetFileName(targetDirectory), "core", StringComparison.OrdinalIgnoreCase))
+        {
+            var bepinexRoot = ParentDirectory(fullTargetAssemblyPath, 2);
+
+            if (HasBepInExCoreDirectory(bepinexRoot))
+                return bepinexRoot;
+        }
+
+        return TryDetermineBepInExRootFromGameDirectory(targetDirectory);
+    }
+
+    private static string TryDetermineBepInExRootFromCurrentAssembly()
+    {
+        var assemblyLocation = typeof(StartupHook).Assembly.Location.Replace('/', Path.DirectorySeparatorChar);
+        return TryDetermineBepInExRootFromTargetAssembly(assemblyLocation);
+    }
+
+    private static string TryDetermineBepInExRootFromGameDirectory(string gameDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(gameDirectory))
+            return null;
+
+        var bepinexRoot = Path.Combine(gameDirectory, "BepInEx");
+
+        return HasBepInExCoreDirectory(bepinexRoot) ? bepinexRoot : null;
+    }
+
+    private static bool HasBepInExCoreDirectory(string bepinexRoot)
+    {
+        return !string.IsNullOrWhiteSpace(bepinexRoot)
+            && Directory.Exists(Path.Combine(bepinexRoot, "core"));
+    }
+
+    private static string GetCommandLineArgValue(string name)
+    {
+        var args = Environment.GetCommandLineArgs();
+
+        for (var i = 1; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+                return args[i + 1];
+        }
+
+        return null;
+    }
+
+    private static string ParentDirectory(string path, int levels)
+    {
+        for (var i = 0; i < levels; i++)
+            path = Path.GetDirectoryName(path);
+
+        return path;
+    }
 }
 
 namespace BepInEx.NET.CoreCLR
@@ -199,11 +294,11 @@ namespace BepInEx.NET.CoreCLR
             }
         }
 
-        internal static void OuterMain(string filename)
+        internal static void OuterMain(string filename, string bepinexRootPath)
         {
             PlatformUtils.SetPlatform();
 
-            Paths.SetDotNetGamePath(filename);
+            Paths.SetDotNetGamePath(filename, bepinexRootPath);
 
             AppDomain.CurrentDomain.AssemblyResolve += SharedEntrypoint.LocalResolve;
 

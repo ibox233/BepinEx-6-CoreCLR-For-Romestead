@@ -45,6 +45,33 @@ function Assert-LogContainsExactlyOnce {
     }
 }
 
+function Assert-SmokeLog {
+    param(
+        [string] $Log
+    )
+
+    Assert-LogContains -Log $Log -Text "Preloader started"
+    Assert-LogContains -Log $Log -Text "Preloader finished"
+    Assert-LogContains -Log $Log -Text "Chainloader initialized"
+    Assert-LogContains -Log $Log -Text "1 plugin to load"
+    Assert-LogContains -Log $Log -Text "Loading [Smoke Test Plugin 1.0.0]"
+    Assert-LogContains -Log $Log -Text "Smoke test plugin loaded"
+    Assert-LogContains -Log $Log -Text "Chainloader startup complete"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "Preloader started"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "Chainloader initialized"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "1 plugin to load"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "Loading [Smoke Test Plugin 1.0.0]"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "Smoke test plugin loaded"
+    Assert-LogContainsExactlyOnce -Log $Log -Text "Chainloader startup complete"
+
+    $hasFatalPreloaderError = $Log.IndexOf("[Fatal  : Preloader]", [System.StringComparison]::Ordinal) -ge 0 -or
+                              $Log.IndexOf("Unhandled fatal exception", [System.StringComparison]::Ordinal) -ge 0
+
+    if ($hasFatalPreloaderError) {
+        throw "Smoke test log contains a fatal preloader error."
+    }
+}
+
 function Remove-SmokeDirectory {
     param(
         [string] $Path,
@@ -74,6 +101,8 @@ $projectDir = Join-Path $testRoot "SmokeGame"
 $pluginProjectDir = Join-Path $testRoot "SmokePlugin"
 $duplicateEntrypointDir = Join-Path $testRoot "DuplicateEntrypoint"
 $gameDir = Join-Path $testRoot "game"
+$r2GameDir = Join-Path $testRoot "r2-game"
+$r2ProfileDir = Join-Path $testRoot "r2-profile"
 
 New-Item -ItemType Directory -Force -Path $smokeRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $testRoot | Out-Null
@@ -201,25 +230,87 @@ public sealed class SmokePlugin : BasePlugin
     Write-Host $log.TrimEnd()
     Write-Host "----- End smoke test BepInEx log -----"
 
-    Assert-LogContains -Log $log -Text "Preloader started"
-    Assert-LogContains -Log $log -Text "Preloader finished"
-    Assert-LogContains -Log $log -Text "Chainloader initialized"
-    Assert-LogContains -Log $log -Text "1 plugin to load"
-    Assert-LogContains -Log $log -Text "Loading [Smoke Test Plugin 1.0.0]"
-    Assert-LogContains -Log $log -Text "Smoke test plugin loaded"
-    Assert-LogContains -Log $log -Text "Chainloader startup complete"
-    Assert-LogContainsExactlyOnce -Log $log -Text "Preloader started"
-    Assert-LogContainsExactlyOnce -Log $log -Text "Chainloader initialized"
-    Assert-LogContainsExactlyOnce -Log $log -Text "1 plugin to load"
-    Assert-LogContainsExactlyOnce -Log $log -Text "Loading [Smoke Test Plugin 1.0.0]"
-    Assert-LogContainsExactlyOnce -Log $log -Text "Smoke test plugin loaded"
-    Assert-LogContainsExactlyOnce -Log $log -Text "Chainloader startup complete"
+    Assert-SmokeLog -Log $log
 
-    $hasFatalPreloaderError = $log.IndexOf("[Fatal  : Preloader]", [System.StringComparison]::Ordinal) -ge 0 -or
-                              $log.IndexOf("Unhandled fatal exception", [System.StringComparison]::Ordinal) -ge 0
+    dotnet publish (Join-Path $projectDir "SmokeGame.csproj") -c Release -f net8.0 --self-contained false -o $r2GameDir | Out-Null
+    Expand-Archive -LiteralPath $resolvedPackagePath -DestinationPath $r2ProfileDir -Force
 
-    if ($hasFatalPreloaderError) {
-        throw "Smoke test log contains a fatal preloader error."
+    $r2RootLoaderPath = Join-Path $r2ProfileDir "BepInEx.NET.CoreCLR.dll"
+    $r2D3d11HookPath = Join-Path $r2ProfileDir "d3d11.dll"
+    $r2BepInExRoot = Join-Path $r2ProfileDir "BepInEx"
+    $r2CoreDir = Join-Path $r2BepInExRoot "core"
+    $r2CoreLoaderPath = Join-Path $r2CoreDir "BepInEx.NET.CoreCLR.dll"
+    $r2CorePath = Join-Path $r2CoreDir "BepInEx.Core.dll"
+    $r2CommonPath = Join-Path $r2CoreDir "BepInEx.NET.Common.dll"
+    $r2PluginsDir = Join-Path $r2BepInExRoot "plugins"
+    $r2GameDll = Join-Path $r2GameDir "SmokeGame.dll"
+    $r2LogPath = Join-Path $r2BepInExRoot "LogOutput.log"
+    $r2GameLoaderPath = Join-Path $r2GameDir "BepInEx.NET.CoreCLR.dll"
+    $r2GameHookPath = Join-Path $r2GameDir "d3d11.dll"
+
+    Assert-FileExists -Path $r2RootLoaderPath -Description "r2 profile root startup hook loader"
+    Assert-FileExists -Path $r2CoreLoaderPath -Description "r2 profile core startup hook loader"
+    Assert-FileExists -Path $r2CorePath -Description "r2 profile BepInEx core assembly"
+    Assert-FileExists -Path $r2CommonPath -Description "r2 profile BepInEx .NET common assembly"
+    Assert-FileExists -Path $r2D3d11HookPath -Description "r2 profile d3d11 hook"
+    Assert-FileExists -Path $r2GameDll -Description "r2 smoke game assembly"
+
+    Copy-Item -LiteralPath $r2RootLoaderPath -Destination $r2GameLoaderPath -Force
+    Copy-Item -LiteralPath $r2D3d11HookPath -Destination $r2GameHookPath -Force
+
+    New-Item -ItemType Directory -Force -Path $r2PluginsDir | Out-Null
+
+    @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="BepInEx.Core">
+      <HintPath>$r2CorePath</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="BepInEx.NET.Common">
+      <HintPath>$r2CommonPath</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
+"@ | Set-Content -LiteralPath (Join-Path $pluginProjectDir "SmokePlugin.csproj") -Encoding UTF8
+
+    dotnet publish (Join-Path $pluginProjectDir "SmokePlugin.csproj") -c Release -f net8.0 -o $r2PluginsDir | Out-Null
+    Assert-FileExists -Path (Join-Path $r2PluginsDir "SmokePlugin.dll") -Description "r2 smoke plugin assembly"
+
+    Remove-Item -LiteralPath $r2LogPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath (Join-Path $r2GameDir "BepInEx") -Recurse -Force -ErrorAction SilentlyContinue
+
+    $previousStartupHooks = [Environment]::GetEnvironmentVariable("DOTNET_STARTUP_HOOKS", "Process")
+    [Environment]::SetEnvironmentVariable("DOTNET_STARTUP_HOOKS", (Resolve-Path -LiteralPath $r2GameLoaderPath).Path, "Process")
+
+    try {
+        & dotnet $r2GameDll --doorstop-enable true --doorstop-target $r2CoreLoaderPath | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            throw "r2 smoke game exited with code $LASTEXITCODE"
+        }
+    }
+    finally {
+        [Environment]::SetEnvironmentVariable("DOTNET_STARTUP_HOOKS", $previousStartupHooks, "Process")
+    }
+
+    Assert-FileExists -Path $r2LogPath -Description "r2 BepInEx disk log"
+    $r2Log = Get-Content -LiteralPath $r2LogPath -Raw
+
+    Write-Host "----- r2 profile smoke test BepInEx log -----"
+    Write-Host $r2Log.TrimEnd()
+    Write-Host "----- End r2 profile smoke test BepInEx log -----"
+
+    Assert-SmokeLog -Log $r2Log
+
+    if (Test-Path -LiteralPath (Join-Path $r2GameDir "BepInEx")) {
+        throw "r2 profile smoke test unexpectedly created a BepInEx folder in the game directory."
     }
 
     [pscustomobject]@{

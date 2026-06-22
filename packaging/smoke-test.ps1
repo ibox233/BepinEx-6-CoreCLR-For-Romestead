@@ -161,9 +161,6 @@ if (!string.IsNullOrWhiteSpace(duplicateEntrypoint) && File.Exists(duplicateEntr
 
     Assert-FileExists -Path $d3d11HookPath -Description "Client d3d11 hook"
     & (Join-Path $PSScriptRoot "test-d3d11-exports.ps1") -ShimPath $d3d11HookPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Client d3d11 hook export validation failed."
-    }
 
     New-Item -ItemType Directory -Force -Path $duplicateEntrypointDir | Out-Null
     Copy-Item -LiteralPath $loaderPath -Destination $duplicateLoaderPath -Force

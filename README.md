@@ -2,10 +2,10 @@
 
 Romestead-specific BepInEx 6 loader for the game's .NET 8 / MonoGame client.
 
-This fork is based on BepInEx 6 BE764:
+This fork is based on BepInEx 6 BE783:
 
 ```text
-5f39645992ab8b944cad394b63470e4920f8b16d
+c58c42dc60cc31ea6ad2b601faf60668161dcc87
 ```
 
 It is not a general BepInEx release. It is maintained for Romestead and keeps

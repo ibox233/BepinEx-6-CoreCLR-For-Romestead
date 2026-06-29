@@ -53,10 +53,16 @@ Romestead/
     core/
 ```
 
-### Linux / Steam Proton
+### Linux
+
+Linux has two distinct cases: the **client** (run through Steam Proton) and a
+**dedicated server** (run with `dotnet Server.dll`). They use different loader
+init mechanisms - make sure to pick the section that matches what you are running.
+
+#### Linux client (Steam Proton)
 
 Romestead does not currently have a native Linux client build. Use the
-`linux-x64` package when running Romestead through Steam Proton.
+`linux-x64` package when running the Romestead client through Steam Proton.
 
 1. In Steam, open Romestead's local files.
 2. Extract the `linux-x64` release archive directly into the Romestead game folder.
@@ -75,23 +81,46 @@ Romestead/
     core/
 ```
 
+> The client relies on the `d3d11.dll` hook, which Proton resolves the same way Windows does. Romestead should still be launched through Steam. Direct `Romestead.exe` or `dotnet Romestead.dll` launches may hit the game's Steam startup checks.
+
+#### Linux dedicated server (`dotnet Server.dll`)
+
+The `d3d11.dll` hook does **not** apply to a dedicated server. A headless
+`dotnet Server.dll` process never calls into Direct3D, so the d3d11 shim never
+fires and BepInEx never loads. The server instead uses the .NET CoreCLR
+Startup Hook.
+
+To enable it, edit the server's `Server.runtimeconfig.json` and add a
+`STARTUP_HOOKS` entry under `configProperties`, pointing at the absolute path of
+`BepInEx.NET.CoreCLR.dll`:
+
+```json
+{
+  "runtimeOptions": {
+    "configProperties": {
+      "STARTUP_HOOKS": "/absolute/path/to/server/BepInEx/core/BepInEx.NET.CoreCLR.dll"
+    }
+  }
+}
+```
+
+> If `runtimeOptions` or `configProperties` already exist in the file, merge the `STARTUP_HOOKS` key in rather than replacing the whole block.
+
+- Alternatively, you can set `DOTNET_STARTUP_HOOKS` in the environment variables, if you'd rather opt to not edit a Runtime config.
+
+#### Plugins and logs (Linux)
+
 Plugin DLLs go here:
 
 ```text
-Romestead/BepInEx/plugins
+/your/install/path/BepInEx/plugins
 ```
 
 Logs are written here:
 
 ```text
-Romestead/BepInEx/LogOutput.log
+/your/install/path/BepInEx/LogOutput.log
 ```
-
-Romestead should still be launched through Steam. Direct `Romestead.exe` or
-`dotnet Romestead.dll` launches may hit the game's Steam startup checks.
-
-If BepInEx stops starting after a game update, extract the matching package into
-the game folder again.
 
 ### Local build package
 

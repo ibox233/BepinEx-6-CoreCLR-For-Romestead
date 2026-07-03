@@ -44,6 +44,22 @@ Logs are written to:
 BepInEx/LogOutput.log
 ```
 
+### Dedicated Servers
+
+Dedicated servers do not use the `d3d11.dll` client hook. A headless
+`dotnet Server.dll` process must load BepInEx through the .NET CoreCLR startup
+hook instead.
+
+For the server package, point `DOTNET_STARTUP_HOOKS` at the full path to
+`BepInEx.NET.CoreCLR.dll`, or use the included server install script to write
+the matching `STARTUP_HOOKS` entry into `Server.runtimeconfig.json`.
+
+Example:
+
+```text
+DOTNET_STARTUP_HOOKS=/absolute/path/to/server/BepInEx.NET.CoreCLR.dll
+```
+
 ## Building
 
 Build the solution:

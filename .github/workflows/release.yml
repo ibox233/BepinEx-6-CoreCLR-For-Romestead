@@ -12,6 +12,7 @@ on:
       - "BepInEx.Preloader.Core/**"
       - "Native/**"
       - "Runtimes/NET/**"
+      - "packaging/**"
   workflow_dispatch:
 
 permissions:

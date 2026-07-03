@@ -51,11 +51,17 @@ jobs:
         run: |
           $win = .\packaging\package-release.ps1 -Configuration Release -Runtime win-x64
           $linux = .\packaging\package-release.ps1 -Configuration Release -Runtime linux-x64
+          $serverWin = .\packaging\package-server-release.ps1 -Configuration Release -Runtime win-x64
+          $serverLinux = .\packaging\package-server-release.ps1 -Configuration Release -Runtime linux-x64
 
           "win_asset_path=$($win.AssetPath)" >> $env:GITHUB_OUTPUT
           "win_asset_name=$($win.AssetName)" >> $env:GITHUB_OUTPUT
           "linux_asset_path=$($linux.AssetPath)" >> $env:GITHUB_OUTPUT
           "linux_asset_name=$($linux.AssetName)" >> $env:GITHUB_OUTPUT
+          "server_win_asset_path=$($serverWin.AssetPath)" >> $env:GITHUB_OUTPUT
+          "server_win_asset_name=$($serverWin.AssetName)" >> $env:GITHUB_OUTPUT
+          "server_linux_asset_path=$($serverLinux.AssetPath)" >> $env:GITHUB_OUTPUT
+          "server_linux_asset_name=$($serverLinux.AssetName)" >> $env:GITHUB_OUTPUT
           "release_tag=$($win.ReleaseTag)" >> $env:GITHUB_OUTPUT
           "release_name=$($win.ReleaseName)" >> $env:GITHUB_OUTPUT
           "loader_sha=$($win.LoaderSha)" >> $env:GITHUB_OUTPUT
@@ -85,6 +91,9 @@ jobs:
             "Linux / Steam Proton package:"
             "Romestead does not currently have a native Linux client build. Extract the linux-x64 archive into the Proton game folder; it also uses the included ``d3d11.dll`` hook and does not need an install script."
             ""
+            "Dedicated server packages:"
+            "Use the matching Romestead-Server archive for Windows or Linux dedicated servers. Server packages do not use ``d3d11.dll``; they install a CoreCLR startup hook for ``Server.runtimeconfig.json``."
+            ""
             "Launch Romestead through Steam. If the loader stops appearing after a game update, reinstall the matching package."
           ) -join "`n"
 
@@ -106,4 +115,6 @@ jobs:
           gh release upload "${{ steps.package.outputs.release_tag }}" `
             "${{ steps.package.outputs.win_asset_path }}" `
             "${{ steps.package.outputs.linux_asset_path }}" `
+            "${{ steps.package.outputs.server_win_asset_path }}" `
+            "${{ steps.package.outputs.server_linux_asset_path }}" `
             --clobber

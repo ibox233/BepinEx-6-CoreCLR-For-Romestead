@@ -14,6 +14,13 @@ only the runtime path this game needs.
 It uses a local `d3d11.dll` hook and keeps the usual BepInEx folder layout,
 logging, and HarmonyX plugin patching.
 
+Current Romestead loader version: **0.4.2**.
+
+Supported game logs, exception details, and error dialog text are forwarded to
+the BepInEx console and `LogOutput.log`. Set `Enabled = false` under
+`[Logging.Game]` in `BepInEx/config/BepInEx.cfg` to turn this off.
+Startup logs include the loader version, UTC build date, and source commit.
+
 ## Installation
 
 Use the release package for your platform.

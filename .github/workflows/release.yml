@@ -80,35 +80,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $notes = @(
-            "Romestead BepInEx Mod Loader release."
-            ""
-            "Loader source commit: ``${{ steps.package.outputs.loader_sha }}``"
-            ""
-            "Windows install:"
-            "Extract the win-x64 archive directly into the Romestead game folder. The Windows client uses the included ``d3d11.dll`` hook and does not need an install script."
-            ""
-            "Linux / Steam Proton package:"
-            "Romestead does not currently have a native Linux client build. Extract the linux-x64 archive into the Proton game folder; it also uses the included ``d3d11.dll`` hook and does not need an install script."
-            ""
-            "Dedicated server packages:"
-            "Use the matching Romestead-Server archive for Windows or Linux dedicated servers. Server packages do not use ``d3d11.dll``; they install a CoreCLR startup hook for ``Server.runtimeconfig.json``."
-            ""
-            "Launch Romestead through Steam. If the loader stops appearing after a game update, reinstall the matching package."
-          ) -join "`n"
+          $notesPath = Join-Path $env:GITHUB_WORKSPACE "packaging/RELEASE_NOTES.md"
 
           gh release view "${{ steps.package.outputs.release_tag }}" *> $null
           if ($LASTEXITCODE -ne 0) {
             gh release create "${{ steps.package.outputs.release_tag }}" `
               --target "${{ github.sha }}" `
               --title "${{ steps.package.outputs.release_name }}" `
-              --notes $notes `
+              --notes-file $notesPath `
               --latest
           } else {
             gh release edit "${{ steps.package.outputs.release_tag }}" `
               --target "${{ github.sha }}" `
               --title "${{ steps.package.outputs.release_name }}" `
-              --notes $notes `
+              --notes-file $notesPath `
               --latest
           }
 

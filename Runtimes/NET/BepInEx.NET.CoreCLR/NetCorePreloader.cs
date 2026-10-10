@@ -28,6 +28,7 @@ namespace BepInEx.NET.CoreCLR
             Logger.Sources.Add(TraceLogSource.CreateSource());
 
             ChainloaderLogHelper.PrintLogInfo(Log);
+            PrintBuildInfo();
 
             Log.LogInfo($"CLR runtime version: {Environment.Version}");
 
@@ -71,7 +72,39 @@ namespace BepInEx.NET.CoreCLR
 
             var chainloader = new NetChainloader();
             chainloader.Initialize();
+            SetupGameLogs();
             chainloader.Execute();
+        }
+
+        private static void PrintBuildInfo()
+        {
+            var assembly = typeof(NetCorePreloader).Assembly;
+            foreach (var metadata in assembly.GetCustomAttributes<AssemblyMetadataAttribute>())
+            {
+                switch (metadata.Key)
+                {
+                    case "RomesteadLoaderVersion":
+                        Log.LogMessage($"Romestead Mod Loader: {metadata.Value}");
+                        break;
+                    case "RomesteadBuildDate":
+                        Log.LogMessage($"Loader build date: {metadata.Value}");
+                        break;
+                    case "RomesteadCommit":
+                        Log.LogMessage($"Loader commit: {metadata.Value}");
+                        break;
+                }
+            }
+        }
+
+        private static void SetupGameLogs()
+        {
+            try
+            {
+                GameLogBridge.Start();
+            }
+            catch (Exception)
+            {
+            }
         }
     }
 }

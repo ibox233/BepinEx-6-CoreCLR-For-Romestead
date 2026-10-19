@@ -6,7 +6,6 @@
         <OutputPath>$(BuildDir)/NET.CoreCLR</OutputPath>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
-        <RomesteadLoaderVersion Condition="'$(RomesteadLoaderVersion)' == ''">0.4.2</RomesteadLoaderVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -15,17 +14,4 @@
     </ItemGroup>
 
     <Import Project="..\BepInEx.NET.Shared\BepInEx.NET.Shared.projitems" Label="Shared"/>
-
-    <Target Name="SetRomesteadBuildInfo" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="InitializeSourceControlInformation">
-        <PropertyGroup>
-            <RomesteadBuildDate Condition="'$(RomesteadBuildDate)' == ''">$([System.DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss')) UTC</RomesteadBuildDate>
-            <RomesteadCommit Condition="'$(SourceRevisionId)' != ''">$(SourceRevisionId)</RomesteadCommit>
-            <RomesteadCommit Condition="'$(SourceRevisionId)' == ''">unknown</RomesteadCommit>
-        </PropertyGroup>
-        <ItemGroup>
-            <AssemblyMetadata Include="RomesteadLoaderVersion" Value="$(RomesteadLoaderVersion)"/>
-            <AssemblyMetadata Include="RomesteadBuildDate" Value="$(RomesteadBuildDate)"/>
-            <AssemblyMetadata Include="RomesteadCommit" Value="$(RomesteadCommit)"/>
-        </ItemGroup>
-    </Target>
 </Project>

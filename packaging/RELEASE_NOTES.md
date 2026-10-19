@@ -1,27 +1,19 @@
-# Romestead BepInEx 0.4.2
+# Romestead BepInEx 0.4.1
 
 -- English --
 
-Added game log forwarding
-- Supported game logs, Riptide network logs, exception details, and error dialog text now appear in the BepInEx console and `BepInEx/LogOutput.log`.
-- Added `[Logging.Game] Enabled` in `BepInEx.cfg`, enabled by default.
-- Original game logging, dialogs, and exception handling are preserved.
-- Unavailable or changed logging methods are skipped so optional log forwarding does not stop plugin loading.
+Synced selected BepInEx be.783 core fixes
+- Removed a duplicate byte TOML type converter registration.
+- Config enumeration now uses a snapshot under lock to avoid concurrent modification errors.
+- String hashing now uses the full UTF-8 byte length for non-ASCII text.
 
-Added loader build information
-- Startup logs now show the Romestead loader version, UTC build date, and source commit.
-
-Errors occurring before the log bridge starts are not captured. The upstream baseline remains BepInEx be.783.
+The 0.4.2 game logging additions have been withdrawn from the loader. Game log forwarding is available separately as the optional GameLogBridge plugin.
 
 -- Chinese --
 
-新增游戏日志转发
-- 将已支持的游戏日志、Riptide 网络日志、异常详情和错误弹窗文本输出到 BepInEx 控制台及 `BepInEx/LogOutput.log`。
-- 在 `BepInEx.cfg` 中新增 `[Logging.Game] Enabled`，默认开启。
-- 保留游戏原有日志、弹窗和异常处理行为。
-- 日志方法缺失或签名变化时跳过对应入口，避免可选的日志转发阻止插件加载。
+同步 BepInEx be.783 的相关核心修复
+- 移除重复注册的 byte TOML 类型转换器。
+- 配置枚举使用锁内快照，避免并发修改错误。
+- 非 ASCII 字符串哈希使用完整 UTF-8 字节长度。
 
-新增加载器构建信息
-- 启动日志显示 Romestead 加载器版本、UTC 构建日期和源代码 commit。
-
-日志桥启动之前发生的错误无法捕获。上游基线仍为 BepInEx be.783。
+已从加载器撤回 0.4.2 的游戏日志相关改动。游戏日志转发以独立可选插件 GameLogBridge 提供。
